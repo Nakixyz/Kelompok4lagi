@@ -9,6 +9,7 @@
 // Include Modul Logic
 #include "modul_akun.h"
 #include "modul_karyawan.h"
+#include "modul_penumpang.h"
 #include "modul_stasiun.h"
 #include "modul_kereta.h"
 
@@ -640,6 +641,7 @@ void login_screen() {
 void ui_init() {
     akun_init();
     karyawan_init();
+    penumpang_init();
     stasiun_init();
     kereta_init();
 }

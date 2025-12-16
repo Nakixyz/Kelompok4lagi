@@ -9,6 +9,9 @@ extern int g_accountCount;
 extern Karyawan g_karyawan[MAX_RECORDS];
 extern int g_karyawanCount;
 
+extern Penumpang g_penumpang[MAX_RECORDS];
+extern int g_penumpangCount;
+
 extern Stasiun g_stasiun[MAX_RECORDS];
 extern int g_stasiunCount;
 
