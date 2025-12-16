@@ -31,10 +31,12 @@ typedef struct {
 
 /* Master 3: Stasiun */
 typedef struct {
-    char id[10];
-    char nama[50];
-    char kota[50];
-    int active;
+    char id[10];           // id_stasiun
+    char kode[10];         // kode_stasiun
+    char nama[50];         // nama_stasiun
+    char kota[30];
+    char alamat[100];
+    int active;            // atribut aplikasi
 } Stasiun;
 
 /* Master 4: Kereta */
