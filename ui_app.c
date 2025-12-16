@@ -172,10 +172,14 @@ void dashboard_main(char* username) {
         else if (ch == '2') {
             view_karyawan(); // Masuk menu karyawan
         }
-        else if (ch == '1' || ch == '3' || ch == '4') {
-            gotoXY(center_x - 15, start_y + 14); printf(">> Membuka Menu... (Placeholder)");
+        else if (ch == '4') {
+            view_kereta();
+        }
+        else if (ch == '1' || ch == '3') {
+            gotoXY(center_x - 15, start_y + 14); printf(">> Membuka Menu. (Placeholder)");
             Sleep(500);
         }
+
     }
 }
 
