@@ -34,18 +34,192 @@ int get_screen_height() {
     return csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 }
 
-void input_password_masked(char *buffer, int max_len) {
+/* Password input: TAB show/hide, spasi ditolak */
+void input_password_masked(char *buffer, int max_len, int x, int y, int field_w) {
     int i = 0;
-    char ch;
+    int visible = 0;
+
+    int limit = max_len - 1;
+    if (field_w > 0 && field_w < limit) limit = field_w;
+
+    buffer[0] = '\0';
+
     while (1) {
-        ch = _getch();
-        if (ch == 13) { buffer[i] = '\0'; break; }
-        else if (ch == 8) { if (i > 0) { i--; printf("\b \b"); } }
-        else if (ch == 27) { buffer[0] = 27; return; }
-        else if (i < max_len - 1 && ch >= 32 && ch <= 126) {
-            buffer[i] = ch; i++; printf("*");
+        int ch = _getch();
+
+        if (ch == 13) { buffer[i] = '\0'; break; }        // ENTER
+        if (ch == 27) { buffer[0] = 27; return; }         // ESC
+
+        if (ch == 9) {                                    // TAB toggle
+            visible = !visible;
+
+            gotoXY(x, y);
+            for (int k = 0; k < field_w; k++) putchar(' ');
+            gotoXY(x, y);
+            for (int k = 0; k < i; k++) putchar(visible ? buffer[k] : '*');
+            continue;
+        }
+
+        if (ch == 8) {                                    // BACKSPACE
+            if (i > 0) {
+                i--;
+                buffer[i] = '\0';
+                printf("\b \b");
+            }
+            continue;
+        }
+
+        if (ch >= 32 && ch <= 126) {                      // printable
+            if (ch == ' ') { Beep(800, 40); continue; }   // tolak spasi
+            if (i < limit) {
+                buffer[i++] = (char)ch;
+                buffer[i] = '\0';
+                putchar(visible ? (char)ch : '*');
+            } else {
+                Beep(800, 40);
+            }
         }
     }
+}
+
+/* Input teks umum (allow_space=0 => spasi ditolak & tidak tampil) */
+void input_text(char *buffer, int max_len, int allow_space) {
+    int i = 0;
+    buffer[0] = '\0';
+
+    while (1) {
+        int ch = _getch();
+
+        if (ch == 13) { buffer[i] = '\0'; break; }        // ENTER
+        if (ch == 27) { buffer[0] = 27; return; }         // ESC
+
+        if (ch == 8) {                                    // BACKSPACE
+            if (i > 0) {
+                i--;
+                buffer[i] = '\0';
+                printf("\b \b");
+            }
+            continue;
+        }
+
+        if (!allow_space && ch == ' ') {                  // tolak spasi
+            Beep(800, 40);
+            continue;
+        }
+
+        if (ch >= 32 && ch <= 126) {
+            if (i < max_len - 1) {
+                buffer[i++] = (char)ch;
+                buffer[i] = '\0';
+                putchar((char)ch);
+            } else {
+                Beep(800, 40);
+            }
+        }
+    }
+}
+
+/* Input angka saja (untuk No) */
+void input_digits(char *buffer, int max_len) {
+    int i = 0;
+    buffer[0] = '\0';
+
+    while (1) {
+        int ch = _getch();
+
+        if (ch == 13) { buffer[i] = '\0'; break; }        // ENTER
+        if (ch == 27) { buffer[0] = 27; return; }         // ESC
+
+        if (ch == 8) {                                    // BACKSPACE
+            if (i > 0) {
+                i--;
+                buffer[i] = '\0';
+                printf("\b \b");
+            }
+            continue;
+        }
+
+        if (ch >= '0' && ch <= '9') {
+            if (i < max_len - 1) {
+                buffer[i++] = (char)ch;
+                buffer[i] = '\0';
+                putchar((char)ch);
+            } else {
+                Beep(800, 40);
+            }
+        } else {
+            Beep(800, 40);
+        }
+    }
+}
+
+static void draw_popup_box(int x, int y, int w, int h, const char *title) {
+    if (w < 10) w = 10;
+    if (h < 5) h = 5;
+
+    gotoXY(x, y);
+    for (int i = 0; i < w; i++) putchar('=');
+
+    for (int r = 1; r < h - 1; r++) {
+        gotoXY(x, y + r); putchar('|');
+        gotoXY(x + 1, y + r);
+        for (int i = 0; i < w - 2; i++) putchar(' ');
+        gotoXY(x + w - 1, y + r); putchar('|');
+    }
+
+    gotoXY(x, y + h - 1);
+    for (int i = 0; i < w; i++) putchar('=');
+
+    if (title && title[0]) {
+        gotoXY(x + 2, y);
+        printf("[ %s ]", title);
+    }
+}
+
+static int is_blank(const char *s) {
+    if (!s) return 1;
+    while (*s) {
+        if (*s != ' ' && *s != '\t' && *s != '\r' && *s != '\n') return 0;
+        s++;
+    }
+    return 1;
+}
+
+static int contains_space(const char *s) {
+    if (!s) return 0;
+    while (*s) {
+        if (*s == ' ') return 1;
+        s++;
+    }
+    return 0;
+}
+
+static int looks_like_email(const char *s) {
+    if (!s || !*s) return 0;
+    if (contains_space(s)) return 0;
+    const char *at = strchr(s, '@');
+    if (!at || at == s) return 0;
+    const char *dot = strrchr(s, '.');
+    if (!dot || dot < at) return 0;
+    if (*(dot + 1) == '\0') return 0;
+    return 1;
+}
+
+static int karyawan_id_exists(const char *id) {
+    if (!id || !*id) return 0;
+    for (int i = 0; i < g_karyawanCount; i++) {
+        if (strcmp(g_karyawan[i].id, id) == 0) return 1;
+    }
+    return 0;
+}
+
+/* mapping: No (tampilan) -> index asli array */
+static int build_active_karyawan_indexes(int *out_idx, int max_out) {
+    int n = 0;
+    for (int i = 0; i < g_karyawanCount && n < max_out; i++) {
+        if (g_karyawan[i].active) out_idx[n++] = i;
+    }
+    return n;
 }
 
 /* --- GAMBAR LAYOUT DASAR --- */
@@ -54,8 +228,16 @@ void draw_layout_base(int w, int h, const char* section_title) {
     int header_h = 7;
 
     // Frame Utama
-    for(int x=0; x<w; x++) { gotoXY(x, 0); printf("="); gotoXY(x, header_h); printf("="); gotoXY(x, h-2); printf("="); }
-    for(int y=0; y<h-1; y++) { gotoXY(0, y); printf("||"); gotoXY(split_x, y); printf("||"); gotoXY(w-2, y); printf("||"); }
+    for(int x=0; x<w; x++) {
+        gotoXY(x, 0); printf("=");
+        gotoXY(x, header_h); printf("=");
+        gotoXY(x, h-2); printf("=");
+    }
+    for(int y=0; y<h-1; y++) {
+        gotoXY(0, y); printf("||");
+        gotoXY(split_x, y); printf("||");
+        gotoXY(w-2, y); printf("||");
+    }
 
     // Header Title
     int content_w = w - split_x;
@@ -73,54 +255,267 @@ void draw_layout_base(int w, int h, const char* section_title) {
     gotoXY(5, 3); printf("- - Kelompok 4 - -");
     gotoXY(5, 5); printf("Role: %s", section_title);
 
-    // Label Halaman (Ganti "Login >" jadi nama halaman)
+    // Label Halaman
     gotoXY(split_x + 2, header_h + 1); printf(" %s >", section_title);
 }
 
-/* ================== MENU CRUD KARYAWAN (CONTOH) ================== */
+/* ================== CRUD KARYAWAN ================== */
 void view_karyawan() {
-    while(1) {
-        int w = get_screen_width(); if(w<=0) w=120;
-        int h = get_screen_height(); if(h<=0) h=30;
+    const int ROWS_PER_PAGE = 15;
+    int page = 0;
+
+    while (1) {
+        int w = get_screen_width();  if (w <= 0) w = 120;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int active_idx[MAX_RECORDS];
+        int total = build_active_karyawan_indexes(active_idx, MAX_RECORDS);
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
 
         cls();
         draw_layout_base(w, h, "Kelola Karyawan");
 
-        int split_x = w / 4;
-        int center_x = split_x + ((w - split_x) / 2);
         int top = 10;
 
-        // Tampilkan Tabel Sederhana
-        gotoXY(split_x + 4, top); printf("%-4s %-10s %-25s %-15s %-10s", "No", "ID", "Nama", "Jabatan", "Status");
-        gotoXY(split_x + 4, top+1); for(int i=0; i<w-split_x-10; i++) printf("-");
+        // Header tabel
+        gotoXY(split_x + 4, top);
+        printf("%-4s %-10s %-25s %-22s %-15s %-10s", "No", "ID", "Nama", "Email", "Jabatan", "Status");
+        gotoXY(split_x + 4, top + 1);
+        for (int i = 0; i < w - split_x - 10; i++) putchar('-');
+
+        // Paging data
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
 
         int row = top + 2;
-        int count = 0;
-        for(int i=0; i<g_karyawanCount; i++) {
-            if(g_karyawan[i].active) {
-                if(count < 15) {
-                    gotoXY(split_x + 4, row++);
-                    printf("%-4d %-10s %-25s %-15s %-10s", count+1, g_karyawan[i].id, g_karyawan[i].nama, g_karyawan[i].jabatan, "Aktif");
-                }
-                count++;
+        for (int n = start; n < end; n++) {
+            int i = active_idx[n];
+            gotoXY(split_x + 4, row++);
+            printf("%-4d %-10s %-25s %-22s %-15s %-10s",
+                   n + 1,
+                   g_karyawan[i].id,
+                   g_karyawan[i].nama,
+                   g_karyawan[i].email,
+                   g_karyawan[i].jabatan,
+                   "Aktif");
+        }
+
+        // Footer
+        gotoXY(split_x + 4, h - 8);
+        printf("Total aktif: %d | Halaman: %d/%d", total, page + 1, total_pages);
+
+        gotoXY(split_x + 4,  h - 6); printf("[1] Tambah Data");
+        gotoXY(split_x + 25, h - 6); printf("[2] Hapus Data");
+        gotoXY(split_x + 45, h - 6); printf("[3] Edit Data");
+
+        gotoXY(split_x + 4,  h - 4); printf("[<=] Prev (Left)   [=>] Next (Right)  |  [0] Kembali");
+
+
+        int ch = _getch();
+        if (ch == '0') return;
+
+        // Tombol panah di _getch() biasanya datang sebagai: 0 atau 224 lalu kode kedua
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            // Left Arrow = 75, Right Arrow = 77 (umum di conio)
+            if (ext == 75) { // LEFT
+                if (page > 0) page--;
+                else Beep(800, 60);
+                continue;
+            }
+            if (ext == 77) { // RIGHT
+                if (page + 1 < total_pages) page++;
+                else Beep(800, 60);
+                continue;
             }
         }
 
-        gotoXY(split_x + 4, h - 6); printf("[1] Tambah Data");
-        gotoXY(split_x + 25, h - 6); printf("[2] Hapus Data");
-        gotoXY(split_x + 4, h - 4); printf("[0] Kembali ke Dashboard");
-
-        char ch = _getch();
-        if(ch == '0') return; // Kembali ke dashboard
-
-        // Logika Tambah/Hapus (Simple version)
-        if (ch == '1') {
-             // Logic create popup
-             gotoXY(split_x + 4, h-3); printf(">> Fitur Tambah dipanggil..."); Sleep(500);
-             // Panggil karyawan_create(...) di sini nanti
+        // Tetap dukung tombol huruf
+        if (ch == 'n' || ch == 'N') {
+            if (page + 1 < total_pages) page++;
+            else Beep(800, 60);
+            continue;
         }
-        else if (ch == '2') {
-             gotoXY(split_x + 4, h-3); printf(">> Fitur Hapus dipanggil..."); Sleep(500);
+        if (ch == 'p' || ch == 'P') {
+            if (page > 0) page--;
+            else Beep(800, 60);
+            continue;
+        }
+
+        /* ===== CREATE ===== */
+        if (ch == '1') {
+            int pop_w = 72, pop_h = 16;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 9;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Karyawan");
+
+            char new_id[16];
+            char nama[64], email[64], jabatan[64];
+
+            gotoXY(pop_x + 3, pop_y + 2);  printf("ID Otomatis          : (dibuat sistem)");
+            gotoXY(pop_x + 3, pop_y + 4);  printf("Nama                 : ");
+            gotoXY(pop_x + 3, pop_y + 6);  printf("Email (tanpa spasi)  : ");
+            gotoXY(pop_x + 3, pop_y + 8);  printf("Jabatan              : ");
+
+            gotoXY(pop_x + 27, pop_y + 4); input_text(nama, 63, 1);
+            if (nama[0] == 27) continue;
+
+            gotoXY(pop_x + 27, pop_y + 6); input_text(email, 63, 0);
+            if (email[0] == 27) continue;
+
+            gotoXY(pop_x + 27, pop_y + 8); input_text(jabatan, 63, 1);
+            if (jabatan[0] == 27) continue;
+
+            if (is_blank(nama) || is_blank(email) || is_blank(jabatan)) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 12);
+                printf("Semua field wajib diisi. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+            if (!looks_like_email(email)) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 12);
+                printf("Format email tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            // CREATE AUTO ID
+            karyawan_create_auto(new_id, sizeof(new_id), nama, email, jabatan);
+
+            gotoXY(pop_x + 3, pop_y + 12);
+            printf("Berhasil menambah karyawan dengan ID: %s. Tekan tombol apa saja...", new_id);
+            _getch();
+            continue;
+
+
+            gotoXY(pop_x + 3, pop_y + 12);
+            printf("Berhasil menambah karyawan. Tekan tombol apa saja...");
+            _getch();
+            continue;
+        }
+
+        /* ===== UPDATE ===== */
+        if (ch == '3') {
+            if (total == 0) { Beep(800, 80); continue; }
+
+            int pop_w = 72, pop_h = 18;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 8;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Karyawan");
+
+            char no_buf[8];
+            gotoXY(pop_x + 3, pop_y + 2);
+            printf("Masukkan No (lihat kolom No): ");
+            gotoXY(pop_x + 33, pop_y + 2);
+            input_digits(no_buf, 7);
+            if (no_buf[0] == 27) continue;
+
+            int no = atoi(no_buf);
+            if (no < 1 || no > total) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 4);
+                printf("No tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            int idx = active_idx[no - 1];
+
+            gotoXY(pop_x + 3, pop_y + 4);
+            printf("ID: %s", g_karyawan[idx].id);
+
+            gotoXY(pop_x + 3, pop_y + 6);  printf("Nama baru (Enter=tetap)    : ");
+            gotoXY(pop_x + 3, pop_y + 8);  printf("Email baru (Enter=tetap)   : ");
+            gotoXY(pop_x + 3, pop_y + 10); printf("Jabatan baru (Enter=tetap) : ");
+
+            char nama[64], email[64], jabatan[64];
+
+            gotoXY(pop_x + 34, pop_y + 6);  input_text(nama, 63, 1);
+            if (nama[0] == 27) continue;
+
+            gotoXY(pop_x + 34, pop_y + 8);  input_text(email, 63, 0);
+            if (email[0] == 27) continue;
+
+            gotoXY(pop_x + 34, pop_y + 10); input_text(jabatan, 63, 1);
+            if (jabatan[0] == 27) continue;
+
+            const char *new_nama   = is_blank(nama)   ? g_karyawan[idx].nama   : nama;
+            const char *new_email  = is_blank(email)  ? g_karyawan[idx].email  : email;
+            const char *new_jabatan= is_blank(jabatan)? g_karyawan[idx].jabatan: jabatan;
+
+            if (!looks_like_email(new_email)) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 13);
+                printf("Format email tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            karyawan_update(idx, new_nama, new_email, new_jabatan);
+
+            gotoXY(pop_x + 3, pop_y + 13);
+            printf("Data berhasil diupdate. Tekan tombol apa saja...");
+            _getch();
+            continue;
+        }
+
+        /* ===== DELETE ===== */
+        if (ch == '2') {
+            if (total == 0) { Beep(800, 80); continue; }
+
+            int pop_w = 72, pop_h = 14;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 10;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Hapus Karyawan");
+
+            char no_buf[8];
+            gotoXY(pop_x + 3, pop_y + 2);
+            printf("Masukkan No (lihat kolom No): ");
+            gotoXY(pop_x + 33, pop_y + 2);
+            input_digits(no_buf, 7);
+            if (no_buf[0] == 27) continue;
+
+            int no = atoi(no_buf);
+            if (no < 1 || no > total) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 4);
+                printf("No tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            int idx = active_idx[no - 1];
+
+            gotoXY(pop_x + 3, pop_y + 4);
+            printf("Hapus: %s - %s ?", g_karyawan[idx].id, g_karyawan[idx].nama);
+
+            gotoXY(pop_x + 3, pop_y + 6);
+            printf("Konfirmasi [Y] Ya / [N] Tidak: ");
+
+            int c = _getch();
+            if (c == 'y' || c == 'Y') {
+                karyawan_delete(idx);
+                gotoXY(pop_x + 3, pop_y + 8);
+                printf("Berhasil dihapus. Tekan tombol apa saja...");
+                _getch();
+            }
+            continue;
         }
     }
 }
@@ -139,13 +534,11 @@ void dashboard_main(char* username) {
         int center_x = split_x + (content_w / 2);
         int center_y = h / 2;
 
-        // Selamat Datang
         char welcome[100];
         snprintf(welcome, 100, "Selamat Datang, %s!", username);
-        gotoXY(center_x - (strlen(welcome)/2), center_y - 8);
+        gotoXY(center_x - (int)(strlen(welcome)/2), center_y - 8);
         printf("%s", welcome);
 
-        // Menu Options (Kotak)
         int box_w = 40;
         int box_x = center_x - (box_w / 2);
         int start_y = center_y - 4;
@@ -166,12 +559,8 @@ void dashboard_main(char* username) {
         gotoXY(center_x - 10, start_y + 12); printf("Pilih Menu [0-4] : ");
 
         int ch = _getch();
-        if (ch == '0') {
-            return; // Logout (Kembali ke Login Screen)
-        }
-        else if (ch == '2') {
-            view_karyawan(); // Masuk menu karyawan
-        }
+        if (ch == '0') return;
+        else if (ch == '2') view_karyawan();
         else if (ch == '1' || ch == '3' || ch == '4') {
             gotoXY(center_x - 15, start_y + 14); printf(">> Membuka Menu... (Placeholder)");
             Sleep(500);
@@ -183,20 +572,18 @@ void dashboard_main(char* username) {
 void login_screen() {
     char user[64], pass[64];
     int w, h;
-    int header_h = 7;
 
     while (1) {
         w = get_screen_width(); if(w<=0) w=120;
         h = get_screen_height(); if(h<=0) h=30;
 
         cls();
-        draw_layout_base(w, h, "Login System"); // Pakai base layout yg sama
+        draw_layout_base(w, h, "Login System");
 
         int split_x = w / 4;
         int center_x = split_x + ((w - split_x) / 2);
         int form_top = (h/2) - 5;
 
-        // Form Login
         int box_w = 50;
         int box_x = center_x - (box_w / 2);
 
@@ -206,40 +593,34 @@ void login_screen() {
         gotoXY(box_x, form_top + 4); printf("Password :");
         gotoXY(box_x, form_top + 5); for(int i=0; i<box_w; i++) printf("-");
 
-        gotoXY(split_x + 5, h - 4); printf("[ESC] Keluar Program  |  [ENTER] Login");
+        gotoXY(split_x + 5, h - 4);
+        printf("[ESC] Keluar Program  |  [TAB] Lihat/Sembunyikan Password  |  [ENTER] Login");
 
-        // Input User
         gotoXY(box_x, form_top + 2);
-        CONSOLE_CURSOR_INFO ci; GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
-        ci.bVisible = TRUE; SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
+        CONSOLE_CURSOR_INFO ci;
+        GetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
+        ci.bVisible = TRUE;
+        SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
 
-        fflush(stdin);
-        // Logic baca ESC saat input username
-        user[0] = '\0';
-        int idx = 0;
-        while(1) {
-            int c = _getch();
-            if(c == 13) break; // Enter
-            if(c == 27) { cls(); exit(0); } // ESC Exit
-            if(c == 8) { if(idx>0) { idx--; printf("\b \b"); } }
-            else if(idx < 63 && c >= 32 && c <= 126) { user[idx++] = c; printf("%c", c); }
-        }
-        user[idx] = '\0';
+        input_text(user, 63, 0);            // username: tanpa spasi
+        if (user[0] == 27) { cls(); exit(0); }
 
-        // Input Pass
         gotoXY(box_x, form_top + 6);
-        input_password_masked(pass, 63);
-        if (pass[0] == 27) { cls(); exit(0); } // ESC Exit saat password
+        input_password_masked(pass, 63, box_x, form_top + 6, box_w);
+        if (pass[0] == 27) { cls(); exit(0); }
 
-        ci.bVisible = FALSE; SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
+        ci.bVisible = FALSE;
+        SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
 
-        // Validation
         int success = 0;
         if(strcmp(user, "admin") == 0 && strcmp(pass, "admin") == 0) success = 1;
         else {
             for(int i=0; i<g_accountCount; i++) {
-                if(g_accounts[i].active && strcmp(g_accounts[i].username, user)==0 && strcmp(g_accounts[i].password, pass)==0) {
-                    success = 1; break;
+                if(g_accounts[i].active &&
+                   strcmp(g_accounts[i].username, user)==0 &&
+                   strcmp(g_accounts[i].password, pass)==0) {
+                    success = 1;
+                    break;
                 }
             }
         }
@@ -247,11 +628,7 @@ void login_screen() {
         if (success) {
             gotoXY(center_x - 10, form_top + 9); printf(">> LOGIN BERHASIL! <<");
             Sleep(800);
-
-            // INI PERBAIKANNYA: Panggil Dashboard, Jangan Break/Return!
             dashboard_main(user);
-
-            // Kalau dashboard_main selesai (user pilih logout), loop ini ngulang login lagi
         } else {
             Beep(500, 300);
             gotoXY(center_x - 15, form_top + 9); printf(">> USERNAME / PASSWORD SALAH <<");
