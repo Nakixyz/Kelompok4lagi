@@ -260,6 +260,93 @@ void draw_layout_base(int w, int h, const char* section_title) {
     gotoXY(split_x + 2, header_h + 1); printf(" %s >", section_title);
 }
 
+/* ================== CRUD PENUMPANG ================== */
+void view_penumpang() {
+    const int ROWS_PER_PAGE = 12;
+    int page = 0;
+
+    while (1) {
+        int w = get_screen_width(); if (w <= 0) w = 120;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int active_idx[MAX_RECORDS];
+        int total = build_active_karyawan_indexes(active_idx, MAX_RECORDS);
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
+
+        cls();
+        draw_layout_base(w, h, "Kelola Penumpang");
+
+        int top = 10;
+
+        // Header tabel
+        gotoXY(split_x + 4, top);
+        printf("|%-6s|%-20s|%-25s|%-19s|%-15s|%-12s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
+        gotoXY(split_x + 4, top + 1);
+        for (int i = 0; i < w - split_x - 10; i++) putchar('-');
+
+        // Paging data
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
+
+        int row = top + 2;
+        for (int n = start; n < end; n++) {
+            int i = active_idx[n];
+            gotoXY(split_x + 4, row++);
+            printf("|%-6d|%-20s|%-25s|%-19s|%-15s|%-12s|%-2s|",
+                   n + 1,
+                   g_penumpang[i].id,
+                   g_penumpang[i].nama,
+                   g_penumpang[i].email,
+                   g_penumpang[i].notelp,
+                   g_penumpang[i].tgl_lahir,
+                   g_penumpang[i].jk
+                   );
+        }
+        // SELECTION BAR
+        gotoXY(split_x - 33, h - 37); printf("[1] Tambah Data Penumpang");
+        gotoXY(split_x - 33, h - 35); printf("[2] Hapus Data Penumpang");
+        gotoXY(split_x - 33, h - 33); printf("[0] Kembali ke Dashboard");
+
+        //BOTTOM BAR
+        gotoXY(split_x + 4, h - 4); printf("Kembali [<]");
+        gotoXY(split_x + 16, h - 4); printf("[>] Lanjut");
+        gotoXY(split_x + 100, h - 4);
+        printf("Halaman: %d/%d", page + 1, total_pages);
+
+        int ch = _getch();
+
+        // Tombol panah di _getch() biasanya datang sebagai: 0 atau 224 lalu kode kedua
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            // Left Arrow = 75, Right Arrow = 77 (umum di conio)
+            if (ext == 75) { // LEFT
+                if (page > 0) page--;
+                else Beep(800, 60);
+                continue;
+            }
+            if (ext == 77) { // RIGHT
+                if (page + 1 < total_pages) page++;
+                else Beep(800, 60);
+                continue;
+            }
+        }
+        // CHOICE SELECTOR
+        if (ch == '0') return;
+        if (ch == '1' || ch == '2') {
+            gotoXY(split_x - 36, h-4);printf(">> Memanggil fitur... (Placeholder)"); Sleep(500);
+        }
+    }
+
+}
+
 /* ================== CRUD KARYAWAN ================== */
 void view_karyawan() {
     const int ROWS_PER_PAGE = 15;
@@ -545,7 +632,7 @@ void dashboard_main(char* username) {
         int start_y = center_y - 4;
 
         char* menus[] = {
-            "[1] Kelola Akun",
+            "[1] Kelola Penumpang",
             "[2] Kelola Karyawan",
             "[3] Kelola Stasiun",
             "[4] Kelola Kereta",
@@ -562,10 +649,11 @@ void dashboard_main(char* username) {
         int ch = _getch();
         if (ch == '0') return;
         else if (ch == '2') view_karyawan();
-        else if (ch == '1' || ch == '3' || ch == '4') {
+        else if (ch == '3' || ch == '4') {
             gotoXY(center_x - 15, start_y + 14); printf(">> Membuka Menu... (Placeholder)");
             Sleep(500);
         }
+        else if (ch == '1') view_penumpang();
     }
 }
 
