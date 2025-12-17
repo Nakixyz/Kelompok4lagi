@@ -286,10 +286,10 @@ void view_penumpang() {
         int top = 10;
 
         // Header tabel
-        gotoXY(split_x + 4, top);
-        printf("|%-4s|%-20s|%-25s|%-19s|%-15s|%-14s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
-        gotoXY(split_x + 4, top + 1);
-        for (int i = 0; i < w - split_x - 10; i++) putchar('-');
+        gotoXY(split_x + 10, top);
+        printf("|%-3s|%-13s|%-20s|%-19s|%-16s|%-16s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
+        gotoXY(split_x + 10, top + 1);
+        for (int i = 0; i < 146 - split_x - 10; i++) putchar('-');
 
         // Paging data
         int start = page * ROWS_PER_PAGE;
@@ -299,8 +299,8 @@ void view_penumpang() {
         int row = top + 2;
         for (int n = start; n < end; n++) {
             int i = active_idx[n];
-            gotoXY(split_x + 4, row++);
-            printf("|%-4d|%-20s|%-25s|%-19s|%-15s|%-14s|%-2s|",
+            gotoXY(split_x + 10, row++);
+            printf("|%-3d|%-13s|%-20s|%-19s|%-16s|%-16s|%-2s|",
                    n + 1,
                    g_penumpang[i].id,
                    g_penumpang[i].nama,
