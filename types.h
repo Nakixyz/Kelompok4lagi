@@ -5,11 +5,13 @@
 #define MAX_RECORDS 200
 
 typedef enum {
+    /* 0 = superadmin (khusus admin) */
     ROLE_SUPERADMIN = 0,
-    ROLE_PEMBAYARAN,
-    ROLE_JADWAL,
-    ROLE_DATA,
-    ROLE_MANAGER
+
+    /* 3 role untuk akun karyawan */
+    ROLE_TRANSAKSI  = 1,  /* pembayaran tiket + jadwal */
+    ROLE_DATA       = 2,  /* kelola penumpang, kereta, stasiun */
+    ROLE_MANAGER    = 3   /* kelola laporan (CRUD belum dibuat) */
 } Role;
 
 /* Master 1: Akun */

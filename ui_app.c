@@ -222,6 +222,16 @@ static int build_active_karyawan_indexes(int *out_idx, int max_out) {
     return n;
 }
 
+/* mapping: No (tampilan) -> index asli array (akun) */
+static int build_active_account_indexes(int *out_idx, int max_out) {
+    int n = 0;
+    for (int i = 0; i < g_accountCount && n < max_out; i++) {
+        if (g_accounts[i].active) out_idx[n++] = i;
+    }
+    return n;
+}
+
+
 /* --- GAMBAR LAYOUT DASAR --- */
 void draw_layout_base(int w, int h, const char* section_title) {
     int split_x = w / 4;
@@ -258,6 +268,8 @@ void draw_layout_base(int w, int h, const char* section_title) {
     // Label Halaman
     gotoXY(split_x + 2, header_h + 1); printf(" %s >", section_title);
 }
+
+static const char* role_to_label(Role role);
 
 /* ================== CRUD KARYAWAN ================== */
 void view_karyawan() {
@@ -520,14 +532,326 @@ void view_karyawan() {
     }
 }
 
-/* ================== DASHBOARD MENU UTAMA ================== */
-void dashboard_main(char* username) {
+
+/* ================== CRUD AKUN (SUPERADMIN) ================== */
+static void view_akun() {
+    const int ROWS_PER_PAGE = 15;
+    int page = 0;
+
+    while (1) {
+        int w = get_screen_width();  if (w <= 0) w = 120;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int active_idx[MAX_RECORDS];
+        int total = build_active_account_indexes(active_idx, MAX_RECORDS);
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
+
+        cls();
+        draw_layout_base(w, h, "Kelola Akun");
+
+        int top = 10;
+
+        gotoXY(split_x + 4, top);
+        printf("%-4s %-20s %-22s %-10s", "No", "Username", "Role", "Status");
+        gotoXY(split_x + 4, top + 1);
+        for (int i = 0; i < w - split_x - 10; i++) putchar('-');
+
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
+
+        int row = top + 2;
+        for (int n = start; n < end; n++) {
+            int i = active_idx[n];
+            const char *status = g_accounts[i].active ? "Aktif" : "Nonaktif";
+            gotoXY(split_x + 4, row++);
+            printf("%-4d %-20s %-22s %-10s",
+                   n + 1,
+                   g_accounts[i].username,
+                   role_to_label(g_accounts[i].role),
+                   status);
+        }
+
+        gotoXY(split_x + 4, h - 8);
+        printf("Total aktif: %d | Halaman: %d/%d", total, page + 1, total_pages);
+
+        gotoXY(split_x + 4,  h - 6); printf("[1] Tambah Akun");
+        gotoXY(split_x + 25, h - 6); printf("[2] Hapus Akun");
+        gotoXY(split_x + 45, h - 6); printf("[3] Edit Akun");
+
+        gotoXY(split_x + 4,  h - 4); printf("[<=] Prev (Left)   [=>] Next (Right)  |  [0] Kembali");
+
+        int ch = _getch();
+        if (ch == '0') return;
+
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            if (ext == 75) { if (page > 0) page--; else Beep(800, 60); continue; }   /* LEFT */
+            if (ext == 77) { if (page + 1 < total_pages) page++; else Beep(800, 60); continue; } /* RIGHT */
+        }
+
+        if (ch == 'n' || ch == 'N') { if (page + 1 < total_pages) page++; else Beep(800, 60); continue; }
+        if (ch == 'p' || ch == 'P') { if (page > 0) page--; else Beep(800, 60); continue; }
+
+        /* ===== CREATE ===== */
+        if (ch == '1') {
+            int pop_w = 72, pop_h = 18;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 8;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Akun Karyawan");
+
+            char username[64], password[64], rolebuf[8];
+
+            gotoXY(pop_x + 3, pop_y + 2);  printf("Username (tanpa spasi)     : ");
+            gotoXY(pop_x + 3, pop_y + 4);  printf("Password (tanpa spasi)     : ");
+            gotoXY(pop_x + 3, pop_y + 6);  printf("Role [1=Data 2=Transaksi 3=Manager] : ");
+
+            gotoXY(pop_x + 34, pop_y + 2);
+            input_text(username, 63, 0);
+            if (username[0] == 27) continue;
+
+            gotoXY(pop_x + 34, pop_y + 4);
+            input_password_masked(password, 63, pop_x + 34, pop_y + 4, 30);
+            if (password[0] == 27) continue;
+
+            gotoXY(pop_x + 48, pop_y + 6);
+            input_text(rolebuf, 7, 0);
+            if (rolebuf[0] == 27) continue;
+
+            if (is_blank(username) || is_blank(password) || is_blank(rolebuf)) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 12);
+                printf("Semua field wajib diisi. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            Role role;
+            if (strcmp(rolebuf, "1") == 0) role = ROLE_DATA;
+            else if (strcmp(rolebuf, "2") == 0) role = ROLE_TRANSAKSI;
+            else if (strcmp(rolebuf, "3") == 0) role = ROLE_MANAGER;
+            else {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 12);
+                printf("Role tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            int ok = akun_create(username, password, role);
+            gotoXY(pop_x + 3, pop_y + 12);
+            if (ok) {
+                printf("Berhasil menambah akun. Tekan tombol apa saja...");
+            } else {
+                printf("Gagal menambah akun (duplikat / input tidak valid). Tekan tombol apa saja...");
+            }
+            _getch();
+            continue;
+        }
+
+        /* ===== UPDATE ===== */
+        if (ch == '3') {
+            if (total == 0) { Beep(800, 80); continue; }
+
+            int pop_w = 78, pop_h = 22;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 6;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Akun");
+
+            char no_buf[8];
+            gotoXY(pop_x + 3, pop_y + 2);
+            printf("Masukkan No (lihat kolom No): ");
+            gotoXY(pop_x + 33, pop_y + 2);
+            input_digits(no_buf, 7);
+            if (no_buf[0] == 27) continue;
+
+            int no = atoi(no_buf);
+            if (no < 1 || no > total) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 4);
+                printf("No tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            int idx = active_idx[no - 1];
+            int is_admin = (strcmp(g_accounts[idx].username, "admin") == 0);
+
+            gotoXY(pop_x + 3, pop_y + 4);
+            printf("Username: %s", g_accounts[idx].username);
+            gotoXY(pop_x + 3, pop_y + 5);
+            printf("Role    : %s", role_to_label(g_accounts[idx].role));
+
+            char new_user[64] = "";
+            char new_pass[64] = "";
+            char rolebuf[8] = "";
+
+            int line = pop_y + 7;
+
+            if (!is_admin) {
+                gotoXY(pop_x + 3, line);     printf("Username baru (Enter=tetap)                  : ");
+                gotoXY(pop_x + 55, line);    input_text(new_user, 63, 0);
+                if (new_user[0] == 27) continue;
+                line += 2;
+            } else {
+                gotoXY(pop_x + 3, line); printf("Catatan: akun admin hanya bisa ganti password.");
+                line += 2;
+            }
+
+            gotoXY(pop_x + 3, line);         printf("Password baru (Enter=tetap, tanpa spasi)     : ");
+            gotoXY(pop_x + 55, line);        input_password_masked(new_pass, 63, pop_x + 55, line, 20);
+            if (new_pass[0] == 27) continue;
+            line += 2;
+
+            if (!is_admin) {
+                gotoXY(pop_x + 3, line);
+                printf("Role baru [1=Data 2=Transaksi 3=Manager] (Enter=tetap): ");
+                gotoXY(pop_x + 68, line);
+                input_text(rolebuf, 7, 0);
+                if (rolebuf[0] == 27) continue;
+                line += 2;
+            }
+
+            int any_change = 0;
+            int ok_all = 1;
+
+            if (!is_admin && !is_blank(new_user)) {
+                if (!akun_update_username(idx, new_user)) ok_all = 0;
+                else any_change = 1;
+            }
+
+            if (!is_blank(new_pass)) {
+                akun_change_password(idx, new_pass);
+                any_change = 1;
+            }
+
+            if (!is_admin && !is_blank(rolebuf)) {
+                Role r;
+                if (strcmp(rolebuf, "1") == 0) r = ROLE_DATA;
+                else if (strcmp(rolebuf, "2") == 0) r = ROLE_TRANSAKSI;
+                else if (strcmp(rolebuf, "3") == 0) r = ROLE_MANAGER;
+                else r = (Role)-1;
+
+                if (r == (Role)-1) ok_all = 0;
+                else {
+                    if (!akun_update_role(idx, r)) ok_all = 0;
+                    else any_change = 1;
+                }
+            }
+
+            gotoXY(pop_x + 3, pop_y + pop_h - 3);
+            if (!any_change) {
+                printf("Tidak ada perubahan. Tekan tombol apa saja...");
+            } else if (ok_all) {
+                printf("Berhasil update akun. Tekan tombol apa saja...");
+            } else {
+                printf("Sebagian/perubahan gagal (input tidak valid/duplikat/role salah). Tekan tombol apa saja...");
+            }
+            _getch();
+            continue;
+        }
+
+        /* ===== DELETE ===== */
+        if (ch == '2') {
+            if (total == 0) { Beep(800, 80); continue; }
+
+            int pop_w = 72, pop_h = 14;
+            int pop_x = split_x + (content_w - pop_w) / 2;
+            int pop_y = 10;
+            if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+            draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Hapus Akun");
+
+            char no_buf[8];
+            gotoXY(pop_x + 3, pop_y + 2);
+            printf("Masukkan No (lihat kolom No): ");
+            gotoXY(pop_x + 33, pop_y + 2);
+            input_digits(no_buf, 7);
+            if (no_buf[0] == 27) continue;
+
+            int no = atoi(no_buf);
+            if (no < 1 || no > total) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 4);
+                printf("No tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            int idx = active_idx[no - 1];
+            if (strcmp(g_accounts[idx].username, "admin") == 0) {
+                Beep(500, 200);
+                gotoXY(pop_x + 3, pop_y + 4);
+                printf("Akun admin tidak bisa dihapus. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            }
+
+            gotoXY(pop_x + 3, pop_y + 4);
+            printf("Hapus akun: %s (%s)?", g_accounts[idx].username, role_to_label(g_accounts[idx].role));
+
+            gotoXY(pop_x + 3, pop_y + 6);
+            printf("Konfirmasi [Y] Ya / [N] Tidak: ");
+
+            int c = _getch();
+            if (c == 'y' || c == 'Y') {
+                akun_delete(idx);
+                gotoXY(pop_x + 3, pop_y + 8);
+                printf("Berhasil dihapus. Tekan tombol apa saja...");
+                _getch();
+            }
+            continue;
+        }
+    }
+}
+
+
+static const char* role_to_label(Role role) {
+    switch (role) {
+        case ROLE_SUPERADMIN: return "Superadmin";
+        case ROLE_DATA:       return "Karyawan Data";
+        case ROLE_TRANSAKSI:  return "Karyawan Transaksi";
+        case ROLE_MANAGER:    return "Manager";
+        default:              return "Unknown";
+    }
+}
+
+static int auth_find_account_index(const char* username, const char* password) {
+    if (!username || !password) return -1;
+    for (int i = 0; i < g_accountCount; i++) {
+        if (!g_accounts[i].active) continue;
+        if (strcmp(g_accounts[i].username, username) == 0 &&
+            strcmp(g_accounts[i].password, password) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/* ================== DASHBOARD MENU UTAMA (ROLE-BASED) ================== */
+static void dashboard_main(int account_index) {
+    if (account_index < 0 || account_index >= g_accountCount) return;
+    Account *me = &g_accounts[account_index];
+
     while(1) {
         int w = get_screen_width(); if(w<=0) w=120;
         int h = get_screen_height(); if(h<=0) h=30;
 
         cls();
         draw_layout_base(w, h, "Dashboard");
+        /* Override sidebar role label */
+        gotoXY(5, 5); printf("Role: %-20s", role_to_label(me->role));
 
         int split_x = w / 4;
         int content_w = w - split_x;
@@ -535,7 +859,7 @@ void dashboard_main(char* username) {
         int center_y = h / 2;
 
         char welcome[100];
-        snprintf(welcome, 100, "Selamat Datang, %s!", username);
+        snprintf(welcome, 100, "Selamat Datang, %s!", me->username);
         gotoXY(center_x - (int)(strlen(welcome)/2), center_y - 8);
         printf("%s", welcome);
 
@@ -543,27 +867,67 @@ void dashboard_main(char* username) {
         int box_x = center_x - (box_w / 2);
         int start_y = center_y - 4;
 
-        char* menus[] = {
-            "[1] Kelola Akun",
-            "[2] Kelola Karyawan",
-            "[3] Kelola Stasiun",
-            "[4] Kelola Kereta",
-            "[0] Logout / Keluar"
-        };
+        /* Menu disesuaikan dengan role */
+        int menu_count = 0;
+        const char* menus[8];
 
-        for(int i=0; i<5; i++) {
+        if (me->role == ROLE_SUPERADMIN) {
+            menus[menu_count++] = "[1] Kelola Akun Karyawan";
+            menus[menu_count++] = "[2] Kelola Data Karyawan";
+            menus[menu_count++] = "[0] Logout / Keluar";
+        } else if (me->role == ROLE_DATA) {
+            menus[menu_count++] = "[1] Kelola Penumpang";
+            menus[menu_count++] = "[2] Kelola Stasiun";
+            menus[menu_count++] = "[3] Kelola Kereta";
+            menus[menu_count++] = "[0] Logout / Keluar";
+        } else if (me->role == ROLE_TRANSAKSI) {
+            menus[menu_count++] = "[1] Transaksi Pembayaran Tiket";
+            menus[menu_count++] = "[2] Kelola Jadwal";
+            menus[menu_count++] = "[0] Logout / Keluar";
+        } else if (me->role == ROLE_MANAGER) {
+            menus[menu_count++] = "[1] Laporan";
+            menus[menu_count++] = "[0] Logout / Keluar";
+        } else {
+            menus[menu_count++] = "[0] Logout / Keluar";
+        }
+
+        for(int i=0; i<menu_count; i++) {
             gotoXY(box_x, start_y + (i*2));
             printf("%s", menus[i]);
         }
 
-        gotoXY(center_x - 10, start_y + 12); printf("Pilih Menu [0-4] : ");
+        gotoXY(center_x - 12, start_y + (menu_count*2) + 2);
+        printf("Pilih Menu : ");
 
         int ch = _getch();
         if (ch == '0') return;
-        else if (ch == '2') view_karyawan();
-        else if (ch == '1' || ch == '3' || ch == '4') {
-            gotoXY(center_x - 15, start_y + 14); printf(">> Membuka Menu... (Placeholder)");
-            Sleep(500);
+
+        /* Aksi berdasarkan role */
+        if (me->role == ROLE_SUPERADMIN) {
+            if (ch == '2') {
+                view_karyawan();
+            } else if (ch == '1') {
+                gotoXY(center_x - 20, start_y + (menu_count*2) + 4);
+                view_akun();
+            }
+        } else if (me->role == ROLE_DATA) {
+            if (ch == '2' || ch == '3' || ch == '1') {
+                gotoXY(center_x - 22, start_y + (menu_count*2) + 4);
+                printf(">> Menu Data: CRUD belum diintegrasikan (placeholder)");
+                Sleep(900);
+            }
+        } else if (me->role == ROLE_TRANSAKSI) {
+            if (ch == '1' || ch == '2') {
+                gotoXY(center_x - 26, start_y + (menu_count*2) + 4);
+                printf(">> Menu Transaksi: CRUD belum dibuat (placeholder)");
+                Sleep(900);
+            }
+        } else if (me->role == ROLE_MANAGER) {
+            if (ch == '1') {
+                gotoXY(center_x - 22, start_y + (menu_count*2) + 4);
+                printf(">> Menu Laporan: CRUD belum dibuat (placeholder)");
+                Sleep(900);
+            }
         }
     }
 }
@@ -612,23 +976,11 @@ void login_screen() {
         ci.bVisible = FALSE;
         SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
 
-        int success = 0;
-        if(strcmp(user, "admin") == 0 && strcmp(pass, "admin") == 0) success = 1;
-        else {
-            for(int i=0; i<g_accountCount; i++) {
-                if(g_accounts[i].active &&
-                   strcmp(g_accounts[i].username, user)==0 &&
-                   strcmp(g_accounts[i].password, pass)==0) {
-                    success = 1;
-                    break;
-                }
-            }
-        }
-
-        if (success) {
+        int acc_idx = auth_find_account_index(user, pass);
+        if (acc_idx >= 0) {
             gotoXY(center_x - 10, form_top + 9); printf(">> LOGIN BERHASIL! <<");
             Sleep(800);
-            dashboard_main(user);
+            dashboard_main(acc_idx);
         } else {
             Beep(500, 300);
             gotoXY(center_x - 15, form_top + 9); printf(">> USERNAME / PASSWORD SALAH <<");
