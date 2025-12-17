@@ -262,7 +262,7 @@ void draw_layout_base(int w, int h, const char* section_title) {
 
 /* ================== CRUD PENUMPANG ================== */
 void view_penumpang() {
-    const int ROWS_PER_PAGE = 12;
+    const int ROWS_PER_PAGE = 20;
     int page = 0;
 
     while (1) {
@@ -346,6 +346,8 @@ void view_penumpang() {
         else {
             gotoXY(split_x - 36, h - 4);printf(">> Menu tidak valid."); Sleep(500);
         }
+        // CREATE
+        // DELETE
     }
 
 }
