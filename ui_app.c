@@ -287,7 +287,7 @@ void view_penumpang() {
 
         // Header tabel
         gotoXY(split_x + 4, top);
-        printf("|%-6s|%-20s|%-25s|%-19s|%-15s|%-12s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
+        printf("|%-4s|%-20s|%-25s|%-19s|%-15s|%-14s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
         gotoXY(split_x + 4, top + 1);
         for (int i = 0; i < w - split_x - 10; i++) putchar('-');
 
@@ -300,7 +300,7 @@ void view_penumpang() {
         for (int n = start; n < end; n++) {
             int i = active_idx[n];
             gotoXY(split_x + 4, row++);
-            printf("|%-6d|%-20s|%-25s|%-19s|%-15s|%-12s|%-2s|",
+            printf("|%-4d|%-20s|%-25s|%-19s|%-15s|%-14s|%-2s|",
                    n + 1,
                    g_penumpang[i].id,
                    g_penumpang[i].nama,
