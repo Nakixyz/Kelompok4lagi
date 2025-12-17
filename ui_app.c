@@ -313,13 +313,13 @@ void view_penumpang() {
         // SELECTION BAR
         gotoXY(split_x - 33, h - 37); printf("[1] Tambah Data Penumpang");
         gotoXY(split_x - 33, h - 35); printf("[2] Hapus Data Penumpang");
-        gotoXY(split_x - 33, h - 33); printf("[0] Kembali ke Dashboard");
+        gotoXY(split_x - 33, h - 33); printf("[3] Cari Data Penumpang");
+        gotoXY(split_x - 33, h - 31); printf("[0] Kembali ke Dashboard");
 
         //BOTTOM BAR
         gotoXY(split_x + 4, h - 4); printf("Kembali [<]");
         gotoXY(split_x + 16, h - 4); printf("[>] Lanjut");
-        gotoXY(split_x + 100, h - 4);
-        printf("Halaman: %d/%d", page + 1, total_pages);
+        gotoXY(split_x + 100, h - 4); printf("Halaman: %d/%d", page + 1, total_pages);
 
         int ch = _getch();
 
@@ -340,8 +340,11 @@ void view_penumpang() {
         }
         // CHOICE SELECTOR
         if (ch == '0') return;
-        if (ch == '1' || ch == '2') {
-            gotoXY(split_x - 36, h-4);printf(">> Memanggil fitur... (Placeholder)"); Sleep(500);
+        if (ch == '1' || ch == '2' || ch == '3') {
+            gotoXY(split_x - 36, h - 4);printf(">> Memanggil fitur... (Placeholder)"); Sleep(500);
+        }
+        else {
+            gotoXY(split_x - 36, h - 4);printf(">> Menu tidak valid."); Sleep(500);
         }
     }
 
