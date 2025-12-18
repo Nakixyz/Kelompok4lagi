@@ -262,7 +262,7 @@ void draw_layout_base(int w, int h, const char* section_title) {
 
 /* ================== CRUD PENUMPANG ================== */
 void view_penumpang() {
-    const int ROWS_PER_PAGE = 20;
+    const int ROWS_PER_PAGE = 10;
     int page = 0;
 
     while (1) {
@@ -286,10 +286,10 @@ void view_penumpang() {
         int top = 10;
 
         // Header tabel
-        gotoXY(split_x + 10, top);
-        printf("|%-3s|%-13s|%-20s|%-19s|%-16s|%-16s|%-2s|", "No", "ID", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
-        gotoXY(split_x + 10, top + 1);
-        for (int i = 0; i < 146 - split_x - 10; i++) putchar('-');
+        gotoXY(split_x + 18, top);
+        printf("|%-3s|%-20s|%-19s|%-16s|%-15s|%-3s|", "No", "Nama", "Email", "No. Telp", "Tgl. Lahir", "JK");
+        gotoXY(split_x + 18, top + 1);
+        for (int i = 0; i < 132 - split_x - 10; i++) putchar('-');
 
         // Paging data
         int start = page * ROWS_PER_PAGE;
@@ -299,10 +299,9 @@ void view_penumpang() {
         int row = top + 2;
         for (int n = start; n < end; n++) {
             int i = active_idx[n];
-            gotoXY(split_x + 10, row++);
-            printf("|%-3d|%-13s|%-20s|%-19s|%-16s|%-16s|%-2s|",
+            gotoXY(split_x + 18, row++);
+            printf("|%-3d|%-20s|%-19s|%-16s|%-15s|%-3s|",
                    n + 1,
-                   g_penumpang[i].id,
                    g_penumpang[i].nama,
                    g_penumpang[i].email,
                    g_penumpang[i].notelp,
@@ -310,17 +309,12 @@ void view_penumpang() {
                    g_penumpang[i].jk
                    );
         }
+        //UPPER BAR
+        gotoXY(split_x + 20, h - 23); printf("Total Aktif: %d | [<-] Sebelumnya  [->] Berikutnya | Halaman: %d/%d", total, page + 1, total_pages);
+
         // SELECTION BAR
-        gotoXY(split_x - 33, h - 37); printf("[1] Tambah Data Penumpang");
-        gotoXY(split_x - 33, h - 35); printf("[2] Hapus Data Penumpang");
-        gotoXY(split_x - 33, h - 33); printf("[3] Cari Data Penumpang");
-        gotoXY(split_x - 33, h - 31); printf("[0] Kembali ke Dashboard");
-
-        //BOTTOM BAR
-        gotoXY(split_x + 4, h - 4); printf("Kembali [<]");
-        gotoXY(split_x + 16, h - 4); printf("[>] Lanjut");
-        gotoXY(split_x + 100, h - 4); printf("Halaman: %d/%d", page + 1, total_pages);
-
+        gotoXY(split_x + 20, h - 22); printf("[UP/DOWN] Pilih | [LEFT/RIGHT] Halaman | [ENTER] Detail | [E] Edit | [X] Hapus");
+        gotoXY(split_x + 20, h - 21); printf("[A] Tambah | [0] Kembali ||  Aksi: pilih data dulu, lalu tekan tombol aksi. ");
         int ch = _getch();
 
         // Tombol panah di _getch() biasanya datang sebagai: 0 atau 224 lalu kode kedua
@@ -340,14 +334,54 @@ void view_penumpang() {
         }
         // CHOICE SELECTOR
         if (ch == '0') return;
-        if (ch == '1' || ch == '2' || ch == '3') {
-            gotoXY(split_x - 36, h - 4);printf(">> Memanggil fitur... (Placeholder)"); Sleep(500);
-        }
-        else {
-            gotoXY(split_x - 36, h - 4);printf(">> Menu tidak valid."); Sleep(500);
-        }
         // CREATE
+        if (ch == 'A' || ch == 'a') {
+            char new_id[18], nama[51], email[51], no_telp[31], tgl_lahir[11], jk[2];
+            gotoXY(split_x + 20, h - 19);printf("Tambah Penumpang Baru\n");
+            gotoXY(split_x + 20, h - 18);printf("Nama                    : ");
+            gotoXY(split_x + 20, h - 17);printf("Email                   : ");
+            gotoXY(split_x + 20, h - 16);printf("No. Telp                : ");
+            gotoXY(split_x + 20, h - 15);printf("Tgl. Lahir (yyyy-mm-dd) : ");
+            gotoXY(split_x + 20, h - 14);printf("Jenis Kelamin (L/P)     : ");
+            gotoXY(split_x + 47, h - 18); input_text(nama, 50, 1);
+            if (nama[0] == 50) continue;
+            gotoXY(split_x + 47, h - 17); input_text(email, 50, 1);
+            if (email[0] == 50) continue;
+            gotoXY(split_x + 47, h - 16); input_text(no_telp, 30, 1);
+            if (no_telp[0] == 30) continue;
+            gotoXY(split_x + 47, h - 15); input_text(tgl_lahir, 10, 1);
+            if (tgl_lahir[0] == 10) continue;
+            gotoXY(split_x + 47, h - 14); input_text(jk, 1, 1);
+            if (tgl_lahir[0] == 1) continue;
+            if (is_blank(nama) || is_blank(email) || is_blank(no_telp)) {
+                Beep(500, 200);
+                gotoXY(split_x + 20, h - 13);
+                printf("Semua field wajib diisi. Tekan tombol apa saja...");
+                _getch();
+                continue;
+            if (!looks_like_email(email)) {
+                Beep(500, 200);
+                gotoXY(split_x + 20, h - 13);
+                printf("Format email tidak valid. Tekan tombol apa saja...");
+                _getch();
+                continue;
+                }
+            // CREATE AUTO ID
+            penumpang_create_auto(new_id, sizeof(new_id), nama, email, no_telp, tgl_lahir, jk);
+            gotoXY(split_x + 20, h - 13);
+            printf("Berhasil menambah penumpang baru. Tekan tombol apa saja...");
+            _getch();
+            continue;
+            }
+        }
+        // UPDATE
+        if (ch == 'E' || ch == 'e') {
+
+        }
         // DELETE
+        if (ch == 'X' || ch == 'x') {
+
+        }
     }
 
 }

@@ -29,7 +29,7 @@ void penumpang_init() {
             snprintf(p.nama, sizeof(p.nama), "Penumpang %02d", i);
             snprintf(p.email, sizeof(p.email), "user%02d@kai.id", i);
             snprintf(p.notelp, sizeof(p.notelp), "08123456789");
-            snprintf(p.tgl_lahir, sizeof(p.tgl_lahir), "1994-02-16", i);
+            snprintf(p.tgl_lahir, sizeof(p.tgl_lahir), "1994-2-6");
             snprintf(p.jk, sizeof(p.jk), (i % 2 == 0) ? "L" : "P");
             p.active = 1;
 
