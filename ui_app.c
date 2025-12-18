@@ -27,6 +27,13 @@ int get_screen_width() {
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     return csbi.srWindow.Right - csbi.srWindow.Left + 1;
 }
+
+int get_screen_height() {
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+    return csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+}
+
 /* --- Console Color Helper (highlight selection) --- */
 static WORD g_defaultAttr = 0;
 
@@ -52,11 +59,6 @@ static void set_highlight(int on) {
 }
 
 
-int get_screen_height() {
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-    return csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-}
 
 /* Password input: TAB show/hide, spasi ditolak */
 void input_password_masked(char *buffer, int max_len, int x, int y, int field_w) {
@@ -220,14 +222,63 @@ static int contains_space(const char *s) {
 
 static int looks_like_email(const char *s) {
     if (!s || !*s) return 0;
-    if (contains_space(s)) return 0;
+
+    /* Tidak boleh ada whitespace */
+    for (const char *p = s; *p; p++) {
+        if (*p == ' ' || *p == '	' || *p == ' ' || *p == ' ')
+            return 0;
+    }
+
     const char *at = strchr(s, '@');
-    if (!at || at == s) return 0;
-    const char *dot = strrchr(s, '.');
-    if (!dot || dot < at) return 0;
+    if (!at || at == s) return 0;          /* harus ada '@' dan tidak di awal */
+    if (strchr(at + 1, '@')) return 0;     /* hanya boleh 1 '@' */
+
+    /* local-part: [A-Za-z0-9._+-]+, tidak boleh diawali/diakhiri '.' dan tidak boleh ".." */
+    if (s[0] == '.' || *(at - 1) == '.') return 0;
+
+    char prev = 0;
+    for (const char *p = s; p < at; p++) {
+        char c = *p;
+        int ok = ((c >= 'A' && c <= 'Z') ||
+                  (c >= 'a' && c <= 'z') ||
+                  (c >= '0' && c <= '9') ||
+                  c == '.' || c == '_' || c == '-' || c == '+');
+        if (!ok) return 0;
+        if (c == '.' && prev == '.') return 0;
+        prev = c;
+    }
+
+    const char *domain = at + 1;
+    if (!*domain) return 0;
+
+    /* domain harus mengandung '.' dan TLD minimal 2 char: contoh gmail.com / kai.id */
+    const char *dot = strrchr(domain, '.');
+    if (!dot || dot == domain) return 0;
     if (*(dot + 1) == '\0') return 0;
+    if ((int)strlen(dot + 1) < 2) return 0;
+
+    /* domain: [A-Za-z0-9.-]+, tidak boleh diawali/diakhiri '.'/'-' dan tidak boleh ".." */
+    if (domain[0] == '.' || domain[0] == '-') return 0;
+
+    prev = 0;
+    for (const char *p = domain; *p; p++) {
+        char c = *p;
+        int ok = ((c >= 'A' && c <= 'Z') ||
+                  (c >= 'a' && c <= 'z') ||
+                  (c >= '0' && c <= '9') ||
+                  c == '.' || c == '-');
+        if (!ok) return 0;
+        if (c == '.' && prev == '.') return 0;
+        prev = c;
+    }
+
+    size_t dlen = strlen(domain);
+    if (dlen == 0) return 0;
+    if (domain[dlen - 1] == '.' || domain[dlen - 1] == '-') return 0;
+
     return 1;
 }
+
 
 static int karyawan_id_exists(const char *id) {
     if (!id || !*id) return 0;
@@ -314,6 +365,42 @@ static const char* role_to_label(Role role);
    - [A] tambah, [E] edit, [X] nonaktifkan (soft delete), [0] kembali
    - Data NONAKTIF tetap ditampilkan di tabel
 */
+static void popup_center_clamped(int split_x, int content_w, int pop_w, int pop_h, int *out_x, int *out_y) {
+    int w = get_screen_width();  if (w <= 0) w = 120;
+    int h = get_screen_height(); if (h <= 0) h = 30;
+
+    int x = split_x + (content_w - pop_w) / 2;
+    int y = 8; // aman: di bawah header layout
+
+    int min_x = split_x + 2;
+    int max_x = (w - 3) - pop_w;       // sisakan border luar
+    if (x < min_x) x = min_x;
+    if (x > max_x) x = max_x;
+    if (x < min_x) x = min_x;
+
+    int min_y = 6;
+    int max_y = (h - 3) - pop_h;
+    if (y < min_y) y = min_y;
+    if (y > max_y) y = max_y;
+    if (y < min_y) y = min_y;
+
+    *out_x = x;
+    *out_y = y;
+}
+
+static void form_row(int pop_x, int pop_y, int row_y, int label_w, int input_w, const char *label) {
+    int x_label = pop_x + 3;
+    int x_input = x_label + label_w + 3; // label + " : "
+    int y = pop_y + row_y;
+
+    gotoXY(x_label, y);
+    printf("%-*s : ", label_w, label);
+
+    // bersihkan area input biar rapi
+    for (int i = 0; i < input_w; i++) putchar(' ');
+    gotoXY(x_input, y);
+}
+
 
 static void karyawan_print_hline(int x, int y,
                                 int w_no, int w_id, int w_nama, int w_email, int w_jabatan, int w_status) {
@@ -344,57 +431,114 @@ static void karyawan_popup_detail(int split_x, int content_w, const Karyawan *k)
     _getch();
 }
 
+
+static void form_row_draw(int pop_x, int pop_y, int row_y,
+                          int label_w, int input_w,
+                          const char *label,
+                          int *out_x_input, int *out_y_input) {
+    int x_label = pop_x + 3;
+    int x_input = x_label + label_w + 3; // label + " : "
+    int y = pop_y + row_y;
+
+    gotoXY(x_label, y);
+    printf("%-*s : ", label_w, label);
+
+    // clear area input supaya rapi
+    for (int i = 0; i < input_w; i++) putchar(' ');
+
+    if (out_x_input) *out_x_input = x_input;
+    if (out_y_input) *out_y_input = y;
+}
+
 static void karyawan_popup_add(int split_x, int content_w) {
-    int pop_w = 80, pop_h = 18;
-    int pop_x = split_x + (content_w - pop_w) / 2;
-    int pop_y = 7;
-    if (pop_x < split_x + 2) pop_x = split_x + 2;
+    const int pop_w = 86, pop_h = 18;
+    int pop_x, pop_y;
+    popup_center_clamped(split_x, content_w, pop_w, pop_h, &pop_x, &pop_y);
 
     draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Karyawan");
 
+    const int LABEL_W = 22;
+    const int INPUT_W = 40;
+
     char new_id[16];
-    char nama[64], email[64], jabatan[64];
+    char nama[64], email[64], jabatan_opt[8];
 
-    gotoXY(pop_x + 3, pop_y + 2);  printf("ID Otomatis          : (dibuat sistem)");
-    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama                 : ");
-    gotoXY(pop_x + 3, pop_y + 6);  printf("Email (tanpa spasi)  : ");
-    gotoXY(pop_x + 3, pop_y + 8);  printf("Jabatan              : ");
+    // ==== RENDER FORM SEKALIGUS (TAMPIL LANGSUNG) ====
+    int x_id, y_id, x_nama, y_nama, x_email, y_email, x_jab, y_jab;
 
-    gotoXY(pop_x + 27, pop_y + 4); input_text(nama, 63, 1);
+    form_row_draw(pop_x, pop_y, 2, LABEL_W, INPUT_W, "ID", &x_id, &y_id);
+    gotoXY(x_id, y_id); printf("(dibuat sistem)");
+
+    form_row_draw(pop_x, pop_y, 4, LABEL_W, INPUT_W, "Nama", &x_nama, &y_nama);
+
+    form_row_draw(pop_x, pop_y, 6, LABEL_W, INPUT_W, "Email", &x_email, &y_email);
+    gotoXY(pop_x + 3, pop_y + 7);
+    printf("  Format: nama@domain.com (contoh: user@gmail.com / user@kai.id)");
+
+    form_row_draw(pop_x, pop_y, 9, LABEL_W, INPUT_W, "Jabatan", &x_jab, &y_jab);
+    gotoXY(pop_x + 3, pop_y + 10);
+    printf("  Pilih: 1=Data  2=Transaksi  3=Manager");
+
+    // ==== INPUT (SETELAH FORM SUDAH KE-PRINT SEMUA) ====
+    gotoXY(x_nama, y_nama);
+    input_text(nama, 63, 1);
     if (nama[0] == 27) return;
 
-    gotoXY(pop_x + 27, pop_y + 6); input_text(email, 63, 0);
+    gotoXY(x_email, y_email);
+    input_text(email, 63, 0);
     if (email[0] == 27) return;
 
-    gotoXY(pop_x + 27, pop_y + 8); input_text(jabatan, 63, 1);
-    if (jabatan[0] == 27) return;
+    gotoXY(x_jab, y_jab);
+    input_text(jabatan_opt, 7, 0);
+    if (jabatan_opt[0] == 27) return;
 
-    if (is_blank(nama) || is_blank(email) || is_blank(jabatan)) {
+    // ==== VALIDASI ====
+    if (is_blank(nama) || is_blank(email) || is_blank(jabatan_opt)) {
         Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 12);
+        gotoXY(pop_x + 3, pop_y + 13);
         printf("Semua field wajib diisi. Tekan tombol apa saja...");
         _getch();
         return;
     }
+
     if (!looks_like_email(email)) {
         Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 12);
-        printf("Format email tidak valid. Tekan tombol apa saja...");
+        gotoXY(pop_x + 3, pop_y + 13);
+        printf("Email tidak valid. Contoh: user@gmail.com / user@kai.id");
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    const char *jabatan = NULL;
+    if (strcmp(jabatan_opt, "1") == 0) jabatan = "Karyawan Data";
+    else if (strcmp(jabatan_opt, "2") == 0) jabatan = "Karyawan Transaksi";
+    else if (strcmp(jabatan_opt, "3") == 0) jabatan = "Manager";
+
+    if (!jabatan) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 13);
+        printf("Pilihan jabatan tidak valid. Tekan tombol apa saja...");
         _getch();
         return;
     }
 
     karyawan_create_auto(new_id, sizeof(new_id), nama, email, jabatan);
 
-    gotoXY(pop_x + 3, pop_y + 12);
-    printf("Berhasil tambah karyawan dengan ID: %s. Tekan tombol apa saja...", new_id);
+    gotoXY(pop_x + 3, pop_y + 13);
+    printf("Berhasil tambah karyawan. ID: %s", new_id);
+    gotoXY(pop_x + 3, pop_y + 14);
+    printf("Tekan tombol apa saja...");
     _getch();
 }
 
+
+
 static void karyawan_popup_edit(int split_x, int content_w, int idx) {
-    int pop_w = 86, pop_h = 18;
+    int pop_w = 90, pop_h = 20;
     int pop_x = split_x + (content_w - pop_w) / 2;
-    int pop_y = 7;
+    int pop_y = 6;
     if (pop_x < split_x + 2) pop_x = split_x + 2;
 
     draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Karyawan");
@@ -402,9 +546,10 @@ static void karyawan_popup_edit(int split_x, int content_w, int idx) {
     gotoXY(pop_x + 3, pop_y + 2); printf("ID: %s", g_karyawan[idx].id);
     gotoXY(pop_x + 3, pop_y + 4); printf("Nama baru (Enter=tetap)    : ");
     gotoXY(pop_x + 3, pop_y + 6); printf("Email baru (Enter=tetap)   : ");
-    gotoXY(pop_x + 3, pop_y + 8); printf("Jabatan baru (Enter=tetap) : ");
+    gotoXY(pop_x + 3, pop_y + 8); printf("Jabatan baru [1=Data 2=Transaksi 3=Manager] (Enter=tetap) : ");
 
-    char nama[64], email[64], jabatan[64];
+    char nama[64], email[64], jabatan_opt[8];
+    nama[0] = '\0'; email[0] = '\0'; jabatan_opt[0] = '\0';
 
     gotoXY(pop_x + 34, pop_y + 4); input_text(nama, 63, 1);
     if (nama[0] == 27) return;
@@ -412,24 +557,39 @@ static void karyawan_popup_edit(int split_x, int content_w, int idx) {
     gotoXY(pop_x + 34, pop_y + 6); input_text(email, 63, 0);
     if (email[0] == 27) return;
 
-    gotoXY(pop_x + 34, pop_y + 8); input_text(jabatan, 63, 1);
-    if (jabatan[0] == 27) return;
+    gotoXY(pop_x + 70, pop_y + 8); input_text(jabatan_opt, 7, 0);
+    if (jabatan_opt[0] == 27) return;
 
-    const char *new_nama    = is_blank(nama)    ? g_karyawan[idx].nama    : nama;
-    const char *new_email   = is_blank(email)   ? g_karyawan[idx].email   : email;
-    const char *new_jabatan = is_blank(jabatan) ? g_karyawan[idx].jabatan : jabatan;
+    const char *new_nama  = is_blank(nama)  ? g_karyawan[idx].nama  : nama;
+    const char *new_email = is_blank(email) ? g_karyawan[idx].email : email;
+
+    char jabatan_final[64];
+    snprintf(jabatan_final, sizeof(jabatan_final), "%s", g_karyawan[idx].jabatan);
+
+    if (!is_blank(jabatan_opt)) {
+        if (strcmp(jabatan_opt, "1") == 0) snprintf(jabatan_final, sizeof(jabatan_final), "%s", "Karyawan Data");
+        else if (strcmp(jabatan_opt, "2") == 0) snprintf(jabatan_final, sizeof(jabatan_final), "%s", "Karyawan Transaksi");
+        else if (strcmp(jabatan_opt, "3") == 0) snprintf(jabatan_final, sizeof(jabatan_final), "%s", "Manager");
+        else {
+            Beep(500, 200);
+            gotoXY(pop_x + 3, pop_y + 14);
+            printf("Pilihan jabatan tidak valid. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+    }
 
     if (!looks_like_email(new_email)) {
         Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 12);
-        printf("Format email tidak valid. Tekan tombol apa saja...");
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Email tidak valid. Contoh: user@gmail.com / user@kai.id. Tekan tombol apa saja...");
         _getch();
         return;
     }
 
-    karyawan_update(idx, new_nama, new_email, new_jabatan);
+    karyawan_update(idx, new_nama, new_email, jabatan_final);
 
-    gotoXY(pop_x + 3, pop_y + 12);
+    gotoXY(pop_x + 3, pop_y + 14);
     printf("Berhasil update. Tekan tombol apa saja...");
     _getch();
 }
