@@ -334,6 +334,16 @@ void view_penumpang() {
         }
         // CHOICE SELECTOR
         if (ch == '0') return;
+        if (ch == '1'||ch == '2'||ch == '3'||ch == '4')
+        {
+            gotoXY(split_x + 20, h - 13);
+            printf(">> Memanggil Fitur ... (Placeholder)");
+            _getch();
+        } else {
+            gotoXY(split_x + 20, h - 13);
+            printf(">> Menu tidak valid.");
+            _getch();
+        }
         // CREATE
         if (ch == 'A' || ch == 'a') {
             char new_id[18], nama[51], email[51], no_telp[31], tgl_lahir[11], jk[2];
