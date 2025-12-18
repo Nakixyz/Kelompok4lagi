@@ -5,7 +5,7 @@
 
 #define FILE_KARYAWAN "karyawan.dat"
 
-/* Fungsi Helper untuk Simpan ke File (Private/Static) */
+/* Fungsi Helper untuk Simpan ke File */
 static void karyawan_save() {
     FILE *f = fopen(FILE_KARYAWAN, "wb");
     if (f) {
@@ -14,7 +14,6 @@ static void karyawan_save() {
     }
 }
 
-/* 1. Fungsi Init (Load data atau buat Dummy) */
 void karyawan_init() {
     FILE *f = fopen(FILE_KARYAWAN, "rb");
     if (f) {
@@ -32,7 +31,6 @@ void karyawan_init() {
             snprintf(k.nama, sizeof(k.nama), "Karyawan %02d", i);
             snprintf(k.email, sizeof(k.email), "user%02d@kai.id", i);
 
-            // Jabatan ganti-ganti
             if (i % 2 == 0) snprintf(k.jabatan, sizeof(k.jabatan), "Staff");
             else snprintf(k.jabatan, sizeof(k.jabatan), "Supervisor");
 
@@ -43,7 +41,6 @@ void karyawan_init() {
     }
 }
 
-/* 2. Fungsi Create (Tambah Data) */
 void karyawan_create(const char* id, const char* nama, const char* email, const char* jabatan) {
     if (g_karyawanCount >= MAX_RECORDS) return;
 
@@ -58,10 +55,9 @@ void karyawan_create(const char* id, const char* nama, const char* email, const 
     karyawan_save();
 }
 
-/* 3. Fungsi Delete (Hapus Data) */
 void karyawan_delete(int index) {
     if (index >= 0 && index < g_karyawanCount) {
-        g_karyawan[index].active = 0; // Soft delete
+        g_karyawan[index].active = 0;
         karyawan_save();
     }
 }

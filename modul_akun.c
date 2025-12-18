@@ -24,7 +24,7 @@ void akun_init() {
         g_accountCount = 0;
     }
 
-    /* Seed 50 Data Dummy jika kosong */
+    /* Seed Data Dummy jika kosong */
     if (g_accountCount == 0) {
         // Tambah 1 superadmin default
         Account admin;
@@ -50,12 +50,12 @@ void akun_init() {
 }
 
 int akun_create(const char* username, const char* password, Role role) {
-    if (g_accountCount >= MAX_RECORDS) return 0; // Gagal penuh
+    if (g_accountCount >= MAX_RECORDS) return 0;
 
     // Cek duplikat username
     for(int i=0; i<g_accountCount; i++) {
         if(g_accounts[i].active && strcmp(g_accounts[i].username, username) == 0) {
-            return 0; // Gagal duplikat
+            return 0;
         }
     }
 
@@ -67,12 +67,12 @@ int akun_create(const char* username, const char* password, Role role) {
 
     g_accounts[g_accountCount++] = a;
     akun_save();
-    return 1; // Sukses
+    return 1;
 }
 
 void akun_delete(int index) {
     if (index >= 0 && index < g_accountCount) {
-        g_accounts[index].active = 0; // Soft delete
+        g_accounts[index].active = 0;
         akun_save();
     }
 }

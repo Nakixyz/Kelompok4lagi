@@ -22,14 +22,12 @@ void stasiun_init() {
         g_stasiunCount = 0;
     }
 
-    /* Seed 50 Data Dummy */
     if (g_stasiunCount == 0) {
         for (int i = 1; i <= 50; i++) {
             Stasiun s;
             snprintf(s.id, sizeof(s.id), "STS%03d", i);
             snprintf(s.nama, sizeof(s.nama), "Stasiun Kota %02d", i);
 
-            // Kota A, Kota B, Kota C bergantian
             char kotaChar = 'A' + (i % 5);
             snprintf(s.kota, sizeof(s.kota), "Kota %c", kotaChar);
 

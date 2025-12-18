@@ -1,8 +1,9 @@
-#ifndef GLOBALS_Hn
+#ifndef GLOBALS_H
 #define GLOBALS_H
+
 #include "types.h"
 
-/* Extern artinya: variabel ini ada, tapi isinya ada di file .c */
+/* Extern artinya: variabel ini ada, tapi isinya ada di file globals.c */
 extern Account g_accounts[MAX_RECORDS];
 extern int g_accountCount;
 

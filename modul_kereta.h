@@ -1,15 +1,30 @@
 #ifndef MODUL_KERETA_H
 #define MODUL_KERETA_H
 
-#include "types.h"
-
-/* Data Layer */
-void kereta_init();
-void kereta_create(const char* kode, const char* nama, const char* kelas, int gerbong);
-void kereta_update(int index, const char* nama, const char* kelas, int gerbong);
-void kereta_delete(int index);
-
-/* UI Entry (dipanggil dari ui_app / dashboard) */
-void view_kereta();
-
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+    void kereta_init(void);
+    void view_kereta(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifndef MODUL_KERETA_H
+#define MODUL_KERETA_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+    void kereta_init(void);
+    void view_kereta(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* MODUL_KERETA_H */
+#endif /* MODUL_KERETA_H */
