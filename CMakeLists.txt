@@ -11,4 +11,5 @@ add_executable(TiketKereta
         modul_akun.c
         modul_stasiun.c
         modul_kereta.c
+        modul_penumpang.c
 )
