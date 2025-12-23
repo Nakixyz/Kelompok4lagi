@@ -9,6 +9,7 @@
 // Include Modul Logic
 #include "modul_akun.h"
 #include "modul_karyawan.h"
+#include "modul_penumpang.h"
 #include "modul_stasiun.h"
 #include "modul_kereta.h"
 
@@ -1123,6 +1124,963 @@ static void view_akun() {
     }
 }
 
+/* ================== CRUD DATA (KARYAWAN DATA) ================== */
+
+static int is_digits_only(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) {
+        if (*p < '0' || *p > '9') return 0;
+    }
+    return 1;
+}
+
+/* format: DD-MM-YYYY (10 char), contoh: 01-01-2000 */
+static int looks_like_date_ddmmyyyy(const char *s) {
+    if (!s) return 0;
+    if (strlen(s) != 10) return 0;
+    if (s[2] != '-' || s[5] != '-') return 0;
+    for (int i = 0; i < 10; i++) {
+        if (i == 2 || i == 5) continue;
+        if (s[i] < '0' || s[i] > '9') return 0;
+    }
+    return 1;
+}
+
+/* ---------- PENUMPANG ---------- */
+
+static void penumpang_print_hline(int x, int y,
+                                  int w_no, int w_id, int w_nama, int w_email,
+                                  int w_telp, int w_lahir, int w_jk, int w_status) {
+    gotoXY(x, y); putchar('+');
+    for (int i = 0; i < w_no + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_id + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_nama + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_email + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_telp + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_lahir + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_jk + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_status + 2; i++) putchar('-'); putchar('+');
+}
+
+static void penumpang_popup_detail(int split_x, int content_w, const Penumpang *p) {
+    int pop_w = 82, pop_h = 16;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 8;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Detail Penumpang");
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID             : %s", p->id);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama           : %s", p->nama);
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Email          : %s", p->email);
+    gotoXY(pop_x + 3, pop_y + 8);  printf("No. Telp       : %s", p->no_telp);
+    gotoXY(pop_x + 3, pop_y + 10); printf("Tanggal Lahir  : %s", p->tanggal_lahir);
+    gotoXY(pop_x + 3, pop_y + 12); printf("Jenis Kelamin  : %s", p->jenis_kelamin);
+    gotoXY(pop_x + 3, pop_y + 14); printf("Status         : %s", p->active ? "Aktif" : "Nonaktif");
+
+    _getch();
+}
+
+static void penumpang_popup_add(int split_x, int content_w) {
+    int pop_w = 88, pop_h = 20;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 7;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Penumpang");
+
+    char nama[64], email[64], telp[24], lahir[16], jk[8];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("Nama (boleh spasi)                 : ");
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Email (tanpa spasi)                : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("No. Telp (angka saja)              : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("Tanggal Lahir (DD-MM-YYYY)         : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Jenis Kelamin [L/P]                : ");
+
+    gotoXY(pop_x + 43, pop_y + 2);  input_text(nama, 63, 1);  if (nama[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 4);  input_text(email, 63, 0); if (email[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 6);  input_digits(telp, 23);   if (telp[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 8);  input_text(lahir, 15, 0); if (lahir[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 10); input_text(jk, 7, 0);     if (jk[0] == 27) return;
+
+    if (is_blank(nama) || is_blank(email) || is_blank(telp) || is_blank(lahir) || is_blank(jk)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Semua field wajib diisi. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (!looks_like_email(email)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Email tidak valid. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (!looks_like_date_ddmmyyyy(lahir)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Tanggal lahir harus format DD-MM-YYYY. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (!(jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') || jk[1] != '\0') {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Jenis kelamin harus L atau P. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    char id_new[16];
+    penumpang_create_auto(id_new, sizeof(id_new), nama, email, telp, lahir, (jk[0] == 'l') ? "L" : (jk[0] == 'p') ? "P" : jk);
+
+    gotoXY(pop_x + 3, pop_y + 14);
+    printf("Berhasil tambah. ID: %s. Tekan tombol apa saja...", id_new);
+    _getch();
+}
+
+static void penumpang_popup_edit(int split_x, int content_w, int idx) {
+    int pop_w = 92, pop_h = 22;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 6;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Penumpang (kosongkan untuk tetap)");
+
+    char nama[64], email[64], telp[24], lahir[16], jk[8];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID (tidak bisa diubah)             : %s", g_penumpang[idx].id);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama (boleh spasi)                 : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Email (tanpa spasi)                : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("No. Telp (angka saja)              : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Tanggal Lahir (DD-MM-YYYY)         : ");
+    gotoXY(pop_x + 3, pop_y + 12); printf("Jenis Kelamin [L/P]                : ");
+
+    gotoXY(pop_x + 43, pop_y + 4);  input_text(nama, 63, 1);  if (nama[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 6);  input_text(email, 63, 0); if (email[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 8);  input_text(telp, 23, 0);  if (telp[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 10); input_text(lahir, 15, 0); if (lahir[0] == 27) return;
+    gotoXY(pop_x + 43, pop_y + 12); input_text(jk, 7, 0);     if (jk[0] == 27) return;
+
+    const char *new_nama = is_blank(nama) ? g_penumpang[idx].nama : nama;
+    const char *new_email = is_blank(email) ? g_penumpang[idx].email : email;
+    const char *new_telp = is_blank(telp) ? g_penumpang[idx].no_telp : telp;
+    const char *new_lahir = is_blank(lahir) ? g_penumpang[idx].tanggal_lahir : lahir;
+
+    char jk_final[16];
+    snprintf(jk_final, sizeof(jk_final), "%s", g_penumpang[idx].jenis_kelamin);
+    if (!is_blank(jk)) {
+        if (!(jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') || jk[1] != '\0') {
+            Beep(500, 200);
+            gotoXY(pop_x + 3, pop_y + 16);
+            printf("Jenis kelamin harus L atau P. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+        snprintf(jk_final, sizeof(jk_final), "%c", (jk[0] == 'l') ? 'L' : (jk[0] == 'p') ? 'P' : jk[0]);
+    }
+
+    if (!looks_like_email(new_email)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("Email tidak valid. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (!looks_like_date_ddmmyyyy(new_lahir)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("Tanggal lahir harus format DD-MM-YYYY. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (!is_digits_only(new_telp)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("No. telp harus angka saja. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    penumpang_update(idx, new_nama, new_email, new_telp, new_lahir, jk_final);
+
+    gotoXY(pop_x + 3, pop_y + 16);
+    printf("Berhasil update. Tekan tombol apa saja...");
+    _getch();
+}
+
+static void penumpang_popup_delete_soft(int split_x, int content_w, int idx) {
+    int pop_w = 78, pop_h = 14;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 9;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Nonaktifkan Penumpang");
+
+    gotoXY(pop_x + 3, pop_y + 3);
+    printf("Ubah status penumpang %s (%s) menjadi NONAKTIF?", g_penumpang[idx].id, g_penumpang[idx].nama);
+
+    gotoXY(pop_x + 3, pop_y + 6);
+    printf("Konfirmasi [Y] Ya / [N] Tidak: ");
+
+    int c = _getch();
+    if (c == 'y' || c == 'Y') {
+        penumpang_delete(idx);
+        gotoXY(pop_x + 3, pop_y + 8);
+        printf("Status berhasil jadi NONAKTIF. Tekan tombol apa saja...");
+        _getch();
+    }
+}
+
+static void view_penumpang() {
+    const int ROWS_PER_PAGE = 10;
+    int page = 0;
+    int selected = 0;
+
+    const int W_NO = 3;
+    const int W_ID = 8;
+    const int W_NAMA = 18;
+    const int W_EMAIL = 22;
+    const int W_TELP = 12;
+    const int W_LAHIR = 10;
+    const int W_JK = 2;
+    const int W_STATUS = 10;
+
+    while (1) {
+        int w = get_screen_width();  if (w <= 0) w = 140;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int total = g_penumpangCount;
+
+        int aktif = 0, nonaktif = 0;
+        for (int i = 0; i < total; i++) {
+            if (g_penumpang[i].active) aktif++; else nonaktif++;
+        }
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
+
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
+
+        int rows_on_page = end - start;
+        if (rows_on_page < 0) rows_on_page = 0;
+        if (rows_on_page == 0) selected = 0;
+        if (selected >= rows_on_page) selected = (rows_on_page > 0) ? rows_on_page - 1 : 0;
+        if (selected < 0) selected = 0;
+
+        cls();
+        draw_layout_base(w, h, "Kelola Penumpang");
+
+        int table_w = 1 + (W_NO + 3) + (W_ID + 3) + (W_NAMA + 3) + (W_EMAIL + 3) + (W_TELP + 3) + (W_LAHIR + 3) + (W_JK + 3) + (W_STATUS + 3);
+        int table_x = split_x + (content_w - table_w) / 2;
+        if (table_x < split_x + 2) table_x = split_x + 2;
+
+        int table_y = 10;
+
+        penumpang_print_hline(table_x, table_y, W_NO, W_ID, W_NAMA, W_EMAIL, W_TELP, W_LAHIR, W_JK, W_STATUS);
+        gotoXY(table_x, table_y + 1);
+        printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+               W_NO, "No", W_ID, "ID", W_NAMA, "Nama", W_EMAIL, "Email", W_TELP, "Telp", W_LAHIR, "Lahir", W_JK, "JK", W_STATUS, "Status");
+        penumpang_print_hline(table_x, table_y + 2, W_NO, W_ID, W_NAMA, W_EMAIL, W_TELP, W_LAHIR, W_JK, W_STATUS);
+
+        for (int r = 0; r < ROWS_PER_PAGE; r++) {
+            int y = table_y + 3 + r;
+
+            if (r < rows_on_page) {
+                int n = start + r;
+                const char *status = g_penumpang[n].active ? "Aktif" : "Nonaktif";
+
+                set_highlight(r == selected);
+                gotoXY(table_x, y);
+                printf("| %*d | %-*.*s | %-*.*s | %-*.*s | %-*.*s | %-*.*s | %-*.*s | %-*s |",
+                       W_NO, n + 1,
+                       W_ID, W_ID, g_penumpang[n].id,
+                       W_NAMA, W_NAMA, g_penumpang[n].nama,
+                       W_EMAIL, W_EMAIL, g_penumpang[n].email,
+                       W_TELP, W_TELP, g_penumpang[n].no_telp,
+                       W_LAHIR, W_LAHIR, g_penumpang[n].tanggal_lahir,
+                       W_JK, W_JK, g_penumpang[n].jenis_kelamin,
+                       W_STATUS, status);
+                set_highlight(0);
+            } else {
+                gotoXY(table_x, y);
+                printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+                       W_NO, "", W_ID, "", W_NAMA, "", W_EMAIL, "", W_TELP, "", W_LAHIR, "", W_JK, "", W_STATUS, "");
+            }
+        }
+
+        penumpang_print_hline(table_x, table_y + 3 + ROWS_PER_PAGE, W_NO, W_ID, W_NAMA, W_EMAIL, W_TELP, W_LAHIR, W_JK, W_STATUS);
+
+        int footer_y = table_y + 3 + ROWS_PER_PAGE + 2;
+
+        gotoXY(table_x, footer_y);
+        printf("Total: %d (Aktif: %d | Nonaktif: %d) | Halaman: %d/%d | [<-] Sebelumnya [->] Berikutnya",
+               total, aktif, nonaktif, page + 1, total_pages);
+
+        gotoXY(table_x, footer_y + 1);
+        printf("[UP/DOWN] Pilih | [LEFT/RIGHT] Halaman | [ENTER] Detail | [E] Edit | [X] Nonaktifkan");
+
+        gotoXY(table_x, footer_y + 2);
+        printf("[A] Tambah | [0] Kembali | Aksi: pilih data dulu, lalu tekan tombol aksi.");
+
+        int ch = _getch();
+        if (ch == '0') return;
+
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            if (ext == 72) { if (rows_on_page > 0 && selected > 0) selected--; else Beep(800, 60); continue; }
+            if (ext == 80) { if (rows_on_page > 0 && selected + 1 < rows_on_page) selected++; else Beep(800, 60); continue; }
+            if (ext == 75) { if (page > 0) { page--; selected = 0; } else Beep(800, 60); continue; }
+            if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
+        }
+
+        if (ch == 'a' || ch == 'A') { penumpang_popup_add(split_x, content_w); continue; }
+
+        if (ch == 13) {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            penumpang_popup_detail(split_x, content_w, &g_penumpang[start + selected]);
+            continue;
+        }
+
+        if (ch == 'e' || ch == 'E') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_penumpang[idx].active) { Beep(800, 60); continue; }
+            penumpang_popup_edit(split_x, content_w, idx);
+            continue;
+        }
+
+        if (ch == 'x' || ch == 'X') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_penumpang[idx].active) { Beep(800, 60); continue; }
+            penumpang_popup_delete_soft(split_x, content_w, idx);
+            continue;
+        }
+    }
+}
+
+/* ---------- STASIUN ---------- */
+
+static void stasiun_print_hline(int x, int y,
+                                int w_no, int w_id, int w_kode, int w_nama,
+                                int w_kota, int w_mdpl, int w_status) {
+    gotoXY(x, y); putchar('+');
+    for (int i = 0; i < w_no + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_id + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_kode + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_nama + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_kota + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_mdpl + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_status + 2; i++) putchar('-'); putchar('+');
+}
+
+static void stasiun_popup_detail(int split_x, int content_w, const Stasiun *s) {
+    int pop_w = 92, pop_h = 18;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 8;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Detail Stasiun");
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID      : %s", s->id);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Kode    : %s", s->kode);
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Nama    : %s", s->nama);
+    gotoXY(pop_x + 3, pop_y + 8);  printf("MDPL    : %d", s->mdpl);
+    gotoXY(pop_x + 3, pop_y + 10); printf("Kota    : %s", s->kota);
+    gotoXY(pop_x + 3, pop_y + 12); printf("Alamat  : %s", s->alamat);
+    gotoXY(pop_x + 3, pop_y + 14); printf("Status  : %s", s->active ? s->status : "Nonaktif");
+
+    _getch();
+}
+
+static void stasiun_popup_add(int split_x, int content_w) {
+    int pop_w = 96, pop_h = 22;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 6;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Stasiun");
+
+    char kode[16], nama[64], kota[64], alamat[96], mdpl_buf[16], status[20];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("Kode Stasiun (tanpa spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama Stasiun (boleh spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("MDPL (angka)                        : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("Kota (boleh spasi)                  : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Alamat (boleh spasi)                : ");
+    gotoXY(pop_x + 3, pop_y + 12); printf("Status (mis. Aktif / Maintenance)   : ");
+
+    gotoXY(pop_x + 47, pop_y + 2);  input_text(kode, 15, 0);    if (kode[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 4);  input_text(nama, 63, 1);    if (nama[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 6);  input_digits(mdpl_buf, 15); if (mdpl_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 8);  input_text(kota, 63, 1);    if (kota[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 10); input_text(alamat, 95, 1);  if (alamat[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 12); input_text(status, 19, 1);  if (status[0] == 27) return;
+
+    if (is_blank(kode) || is_blank(nama) || is_blank(mdpl_buf) || is_blank(kota) || is_blank(alamat)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("Field wajib: kode, nama, mdpl, kota, alamat. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (contains_space(kode)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("Kode tidak boleh mengandung spasi. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    int mdpl = atoi(mdpl_buf);
+    if (mdpl < 0) mdpl = 0;
+
+    if (is_blank(status)) snprintf(status, sizeof(status), "Aktif");
+
+    char id_new[16];
+    stasiun_create_auto(id_new, sizeof(id_new), kode, nama, mdpl, kota, alamat, status);
+
+    gotoXY(pop_x + 3, pop_y + 16);
+    printf("Berhasil tambah. ID: %s. Tekan tombol apa saja...", id_new);
+    _getch();
+}
+
+static void stasiun_popup_edit(int split_x, int content_w, int idx) {
+    int pop_w = 98, pop_h = 24;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 5;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Stasiun (kosongkan untuk tetap)");
+
+    char kode[16], nama[64], kota[64], alamat[96], mdpl_buf[16], status[20];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID (tidak bisa diubah)              : %s", g_stasiun[idx].id);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Kode Stasiun (tanpa spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Nama Stasiun (boleh spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("MDPL (angka)                        : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Kota (boleh spasi)                  : ");
+    gotoXY(pop_x + 3, pop_y + 12); printf("Alamat (boleh spasi)                : ");
+    gotoXY(pop_x + 3, pop_y + 14); printf("Status                               : ");
+
+    gotoXY(pop_x + 47, pop_y + 4);  input_text(kode, 15, 0);   if (kode[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 6);  input_text(nama, 63, 1);   if (nama[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 8);  input_text(mdpl_buf, 15, 0); if (mdpl_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 10); input_text(kota, 63, 1);   if (kota[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 12); input_text(alamat, 95, 1); if (alamat[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 14); input_text(status, 19, 1); if (status[0] == 27) return;
+
+    const char *new_kode = is_blank(kode) ? g_stasiun[idx].kode : kode;
+    const char *new_nama = is_blank(nama) ? g_stasiun[idx].nama : nama;
+    const char *new_kota = is_blank(kota) ? g_stasiun[idx].kota : kota;
+    const char *new_alamat = is_blank(alamat) ? g_stasiun[idx].alamat : alamat;
+    const char *new_status = is_blank(status) ? g_stasiun[idx].status : status;
+
+    int mdpl = g_stasiun[idx].mdpl;
+    if (!is_blank(mdpl_buf)) {
+        if (!is_digits_only(mdpl_buf)) {
+            Beep(500, 200);
+            gotoXY(pop_x + 3, pop_y + 18);
+            printf("MDPL harus angka. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+        mdpl = atoi(mdpl_buf);
+        if (mdpl < 0) mdpl = 0;
+    }
+
+    if (contains_space(new_kode)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 18);
+        printf("Kode tidak boleh mengandung spasi. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    stasiun_update(idx, new_kode, new_nama, mdpl, new_kota, new_alamat, new_status);
+
+    gotoXY(pop_x + 3, pop_y + 18);
+    printf("Berhasil update. Tekan tombol apa saja...");
+    _getch();
+}
+
+static void stasiun_popup_delete_soft(int split_x, int content_w, int idx) {
+    int pop_w = 80, pop_h = 14;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 9;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Nonaktifkan Stasiun");
+
+    gotoXY(pop_x + 3, pop_y + 3);
+    printf("Ubah status stasiun %s (%s) menjadi NONAKTIF?", g_stasiun[idx].id, g_stasiun[idx].nama);
+
+    gotoXY(pop_x + 3, pop_y + 6);
+    printf("Konfirmasi [Y] Ya / [N] Tidak: ");
+
+    int c = _getch();
+    if (c == 'y' || c == 'Y') {
+        stasiun_delete(idx);
+        gotoXY(pop_x + 3, pop_y + 8);
+        printf("Status berhasil jadi NONAKTIF. Tekan tombol apa saja...");
+        _getch();
+    }
+}
+
+static void view_stasiun() {
+    const int ROWS_PER_PAGE = 10;
+    int page = 0;
+    int selected = 0;
+
+    const int W_NO = 3;
+    const int W_ID = 8;
+    const int W_KODE = 8;
+    const int W_NAMA = 18;
+    const int W_KOTA = 14;
+    const int W_MDPL = 6;
+    const int W_STATUS = 12;
+
+    while (1) {
+        int w = get_screen_width();  if (w <= 0) w = 140;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int total = g_stasiunCount;
+
+        int aktif = 0, nonaktif = 0;
+        for (int i = 0; i < total; i++) {
+            if (g_stasiun[i].active) aktif++; else nonaktif++;
+        }
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
+
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
+
+        int rows_on_page = end - start;
+        if (rows_on_page < 0) rows_on_page = 0;
+        if (rows_on_page == 0) selected = 0;
+        if (selected >= rows_on_page) selected = (rows_on_page > 0) ? rows_on_page - 1 : 0;
+        if (selected < 0) selected = 0;
+
+        cls();
+        draw_layout_base(w, h, "Kelola Stasiun");
+
+        int table_w = 1 + (W_NO + 3) + (W_ID + 3) + (W_KODE + 3) + (W_NAMA + 3) + (W_KOTA + 3) + (W_MDPL + 3) + (W_STATUS + 3);
+        int table_x = split_x + (content_w - table_w) / 2;
+        if (table_x < split_x + 2) table_x = split_x + 2;
+
+        int table_y = 10;
+
+        stasiun_print_hline(table_x, table_y, W_NO, W_ID, W_KODE, W_NAMA, W_KOTA, W_MDPL, W_STATUS);
+        gotoXY(table_x, table_y + 1);
+        printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+               W_NO, "No", W_ID, "ID", W_KODE, "Kode", W_NAMA, "Nama", W_KOTA, "Kota", W_MDPL, "MDPL", W_STATUS, "Status");
+        stasiun_print_hline(table_x, table_y + 2, W_NO, W_ID, W_KODE, W_NAMA, W_KOTA, W_MDPL, W_STATUS);
+
+        for (int r = 0; r < ROWS_PER_PAGE; r++) {
+            int y = table_y + 3 + r;
+
+            if (r < rows_on_page) {
+                int n = start + r;
+                const char *status = g_stasiun[n].active ? g_stasiun[n].status : "Nonaktif";
+
+                set_highlight(r == selected);
+                gotoXY(table_x, y);
+                printf("| %*d | %-*.*s | %-*.*s | %-*.*s | %-*.*s | %*d | %-*.*s |",
+                       W_NO, n + 1,
+                       W_ID, W_ID, g_stasiun[n].id,
+                       W_KODE, W_KODE, g_stasiun[n].kode,
+                       W_NAMA, W_NAMA, g_stasiun[n].nama,
+                       W_KOTA, W_KOTA, g_stasiun[n].kota,
+                       W_MDPL, g_stasiun[n].mdpl,
+                       W_STATUS, W_STATUS, status);
+                set_highlight(0);
+            } else {
+                gotoXY(table_x, y);
+                printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+                       W_NO, "", W_ID, "", W_KODE, "", W_NAMA, "", W_KOTA, "", W_MDPL, "", W_STATUS, "");
+            }
+        }
+
+        stasiun_print_hline(table_x, table_y + 3 + ROWS_PER_PAGE, W_NO, W_ID, W_KODE, W_NAMA, W_KOTA, W_MDPL, W_STATUS);
+
+        int footer_y = table_y + 3 + ROWS_PER_PAGE + 2;
+
+        gotoXY(table_x, footer_y);
+        printf("Total: %d (Aktif: %d | Nonaktif: %d) | Halaman: %d/%d | [<-] Sebelumnya [->] Berikutnya",
+               total, aktif, nonaktif, page + 1, total_pages);
+
+        gotoXY(table_x, footer_y + 1);
+        printf("[UP/DOWN] Pilih | [LEFT/RIGHT] Halaman | [ENTER] Detail | [E] Edit | [X] Nonaktifkan");
+
+        gotoXY(table_x, footer_y + 2);
+        printf("[A] Tambah | [0] Kembali | Aksi: pilih data dulu, lalu tekan tombol aksi.");
+
+        int ch = _getch();
+        if (ch == '0') return;
+
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            if (ext == 72) { if (rows_on_page > 0 && selected > 0) selected--; else Beep(800, 60); continue; }
+            if (ext == 80) { if (rows_on_page > 0 && selected + 1 < rows_on_page) selected++; else Beep(800, 60); continue; }
+            if (ext == 75) { if (page > 0) { page--; selected = 0; } else Beep(800, 60); continue; }
+            if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
+        }
+
+        if (ch == 'a' || ch == 'A') { stasiun_popup_add(split_x, content_w); continue; }
+
+        if (ch == 13) {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            stasiun_popup_detail(split_x, content_w, &g_stasiun[start + selected]);
+            continue;
+        }
+
+        if (ch == 'e' || ch == 'E') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_stasiun[idx].active) { Beep(800, 60); continue; }
+            stasiun_popup_edit(split_x, content_w, idx);
+            continue;
+        }
+
+        if (ch == 'x' || ch == 'X') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_stasiun[idx].active) { Beep(800, 60); continue; }
+            stasiun_popup_delete_soft(split_x, content_w, idx);
+            continue;
+        }
+    }
+}
+
+/* ---------- KERETA ---------- */
+
+static void kereta_print_hline(int x, int y,
+                               int w_no, int w_id, int w_nama, int w_kelas,
+                               int w_kap, int w_gerb, int w_status) {
+    gotoXY(x, y); putchar('+');
+    for (int i = 0; i < w_no + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_id + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_nama + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_kelas + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_kap + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_gerb + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_status + 2; i++) putchar('-'); putchar('+');
+}
+
+static void kereta_popup_detail(int split_x, int content_w, const Kereta *k) {
+    int pop_w = 90, pop_h = 18;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 8;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Detail Kereta");
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID Kereta   : %s", k->kode);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama        : %s", k->nama);
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Kelas       : %s", k->kelas);
+    gotoXY(pop_x + 3, pop_y + 8);  printf("Kapasitas   : %d", k->kapasitas);
+    gotoXY(pop_x + 3, pop_y + 10); printf("Gerbong     : %d", k->gerbong);
+    gotoXY(pop_x + 3, pop_y + 12); printf("Status      : %s", k->active ? k->status : "Nonaktif");
+    gotoXY(pop_x + 3, pop_y + 14); printf("Aktif?      : %s", k->active ? "Ya" : "Tidak");
+
+    _getch();
+}
+
+static void kereta_popup_add(int split_x, int content_w) {
+    int pop_w = 94, pop_h = 22;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 6;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Tambah Kereta");
+
+    char nama[64], kelas[32], kap_buf[16], gerb_buf[16], status[20];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("Nama Kereta (boleh spasi)           : ");
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Kelas Kereta (boleh spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Kapasitas (angka)                   : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("Jumlah Gerbong (angka)              : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Status (mis. Aktif / Maintenance)   : ");
+
+    gotoXY(pop_x + 47, pop_y + 2);  input_text(nama, 63, 1);     if (nama[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 4);  input_text(kelas, 31, 1);    if (kelas[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 6);  input_digits(kap_buf, 15);   if (kap_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 8);  input_digits(gerb_buf, 15);  if (gerb_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 10); input_text(status, 19, 1);   if (status[0] == 27) return;
+
+    if (is_blank(nama) || is_blank(kelas) || is_blank(kap_buf) || is_blank(gerb_buf)) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Field wajib: nama, kelas, kapasitas, gerbong. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    int kap = atoi(kap_buf);
+    int gerb = atoi(gerb_buf);
+    if (kap <= 0 || gerb <= 0) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 14);
+        printf("Kapasitas & gerbong harus > 0. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    if (is_blank(status)) snprintf(status, sizeof(status), "Aktif");
+
+    char id_new[16];
+    kereta_create_auto(id_new, sizeof(id_new), nama, kelas, kap, gerb, status);
+
+    gotoXY(pop_x + 3, pop_y + 14);
+    printf("Berhasil tambah. ID: %s. Tekan tombol apa saja...", id_new);
+    _getch();
+}
+
+static void kereta_popup_edit(int split_x, int content_w, int idx) {
+    int pop_w = 96, pop_h = 24;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 5;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Kereta (kosongkan untuk tetap)");
+
+    char nama[64], kelas[32], kap_buf[16], gerb_buf[16], status[20];
+
+    gotoXY(pop_x + 3, pop_y + 2);  printf("ID Kereta (tidak bisa diubah)       : %s", g_kereta[idx].kode);
+    gotoXY(pop_x + 3, pop_y + 4);  printf("Nama Kereta (boleh spasi)           : ");
+    gotoXY(pop_x + 3, pop_y + 6);  printf("Kelas Kereta (boleh spasi)          : ");
+    gotoXY(pop_x + 3, pop_y + 8);  printf("Kapasitas (angka)                   : ");
+    gotoXY(pop_x + 3, pop_y + 10); printf("Jumlah Gerbong (angka)              : ");
+    gotoXY(pop_x + 3, pop_y + 12); printf("Status                               : ");
+
+    gotoXY(pop_x + 47, pop_y + 4);  input_text(nama, 63, 1);      if (nama[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 6);  input_text(kelas, 31, 1);     if (kelas[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 8);  input_text(kap_buf, 15, 0);   if (kap_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 10); input_text(gerb_buf, 15, 0);  if (gerb_buf[0] == 27) return;
+    gotoXY(pop_x + 47, pop_y + 12); input_text(status, 19, 1);    if (status[0] == 27) return;
+
+    const char *new_nama = is_blank(nama) ? g_kereta[idx].nama : nama;
+    const char *new_kelas = is_blank(kelas) ? g_kereta[idx].kelas : kelas;
+    const char *new_status = is_blank(status) ? g_kereta[idx].status : status;
+
+    int kap = g_kereta[idx].kapasitas;
+    if (!is_blank(kap_buf)) {
+        if (!is_digits_only(kap_buf)) {
+            Beep(500, 200);
+            gotoXY(pop_x + 3, pop_y + 16);
+            printf("Kapasitas harus angka. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+        kap = atoi(kap_buf);
+    }
+
+    int gerb = g_kereta[idx].gerbong;
+    if (!is_blank(gerb_buf)) {
+        if (!is_digits_only(gerb_buf)) {
+            Beep(500, 200);
+            gotoXY(pop_x + 3, pop_y + 16);
+            printf("Gerbong harus angka. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+        gerb = atoi(gerb_buf);
+    }
+
+    if (kap <= 0 || gerb <= 0) {
+        Beep(500, 200);
+        gotoXY(pop_x + 3, pop_y + 16);
+        printf("Kapasitas & gerbong harus > 0. Tekan tombol apa saja...");
+        _getch();
+        return;
+    }
+
+    kereta_update(idx, new_nama, new_kelas, kap, gerb, new_status);
+
+    gotoXY(pop_x + 3, pop_y + 16);
+    printf("Berhasil update. Tekan tombol apa saja...");
+    _getch();
+}
+
+static void kereta_popup_delete_soft(int split_x, int content_w, int idx) {
+    int pop_w = 80, pop_h = 14;
+    int pop_x = split_x + (content_w - pop_w) / 2;
+    int pop_y = 9;
+    if (pop_x < split_x + 2) pop_x = split_x + 2;
+
+    draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Nonaktifkan Kereta");
+
+    gotoXY(pop_x + 3, pop_y + 3);
+    printf("Ubah status kereta %s (%s) menjadi NONAKTIF?", g_kereta[idx].kode, g_kereta[idx].nama);
+
+    gotoXY(pop_x + 3, pop_y + 6);
+    printf("Konfirmasi [Y] Ya / [N] Tidak: ");
+
+    int c = _getch();
+    if (c == 'y' || c == 'Y') {
+        kereta_delete(idx);
+        gotoXY(pop_x + 3, pop_y + 8);
+        printf("Status berhasil jadi NONAKTIF. Tekan tombol apa saja...");
+        _getch();
+    }
+}
+
+static void view_kereta() {
+    const int ROWS_PER_PAGE = 10;
+    int page = 0;
+    int selected = 0;
+
+    const int W_NO = 3;
+    const int W_ID = 8;
+    const int W_NAMA = 18;
+    const int W_KELAS = 12;
+    const int W_KAP = 9;
+    const int W_GERB = 7;
+    const int W_STATUS = 12;
+
+    while (1) {
+        int w = get_screen_width();  if (w <= 0) w = 140;
+        int h = get_screen_height(); if (h <= 0) h = 30;
+
+        int split_x = w / 4;
+        int content_w = w - split_x;
+
+        int total = g_keretaCount;
+
+        int aktif = 0, nonaktif = 0;
+        for (int i = 0; i < total; i++) {
+            if (g_kereta[i].active) aktif++; else nonaktif++;
+        }
+
+        int total_pages = (total + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE;
+        if (total_pages < 1) total_pages = 1;
+        if (page >= total_pages) page = total_pages - 1;
+        if (page < 0) page = 0;
+
+        int start = page * ROWS_PER_PAGE;
+        int end = start + ROWS_PER_PAGE;
+        if (end > total) end = total;
+
+        int rows_on_page = end - start;
+        if (rows_on_page < 0) rows_on_page = 0;
+        if (rows_on_page == 0) selected = 0;
+        if (selected >= rows_on_page) selected = (rows_on_page > 0) ? rows_on_page - 1 : 0;
+        if (selected < 0) selected = 0;
+
+        cls();
+        draw_layout_base(w, h, "Kelola Kereta");
+
+        int table_w = 1 + (W_NO + 3) + (W_ID + 3) + (W_NAMA + 3) + (W_KELAS + 3) + (W_KAP + 3) + (W_GERB + 3) + (W_STATUS + 3);
+        int table_x = split_x + (content_w - table_w) / 2;
+        if (table_x < split_x + 2) table_x = split_x + 2;
+
+        int table_y = 10;
+
+        kereta_print_hline(table_x, table_y, W_NO, W_ID, W_NAMA, W_KELAS, W_KAP, W_GERB, W_STATUS);
+        gotoXY(table_x, table_y + 1);
+        printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+               W_NO, "No", W_ID, "ID", W_NAMA, "Nama", W_KELAS, "Kelas", W_KAP, "Kapasitas", W_GERB, "Gerbong", W_STATUS, "Status");
+        kereta_print_hline(table_x, table_y + 2, W_NO, W_ID, W_NAMA, W_KELAS, W_KAP, W_GERB, W_STATUS);
+
+        for (int r = 0; r < ROWS_PER_PAGE; r++) {
+            int y = table_y + 3 + r;
+
+            if (r < rows_on_page) {
+                int n = start + r;
+                const char *status = g_kereta[n].active ? g_kereta[n].status : "Nonaktif";
+
+                set_highlight(r == selected);
+                gotoXY(table_x, y);
+                printf("| %*d | %-*.*s | %-*.*s | %-*.*s | %*d | %*d | %-*.*s |",
+                       W_NO, n + 1,
+                       W_ID, W_ID, g_kereta[n].kode,
+                       W_NAMA, W_NAMA, g_kereta[n].nama,
+                       W_KELAS, W_KELAS, g_kereta[n].kelas,
+                       W_KAP, g_kereta[n].kapasitas,
+                       W_GERB, g_kereta[n].gerbong,
+                       W_STATUS, W_STATUS, status);
+                set_highlight(0);
+            } else {
+                gotoXY(table_x, y);
+                printf("| %-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
+                       W_NO, "", W_ID, "", W_NAMA, "", W_KELAS, "", W_KAP, "", W_GERB, "", W_STATUS, "");
+            }
+        }
+
+        kereta_print_hline(table_x, table_y + 3 + ROWS_PER_PAGE, W_NO, W_ID, W_NAMA, W_KELAS, W_KAP, W_GERB, W_STATUS);
+
+        int footer_y = table_y + 3 + ROWS_PER_PAGE + 2;
+
+        gotoXY(table_x, footer_y);
+        printf("Total: %d (Aktif: %d | Nonaktif: %d) | Halaman: %d/%d | [<-] Sebelumnya [->] Berikutnya",
+               total, aktif, nonaktif, page + 1, total_pages);
+
+        gotoXY(table_x, footer_y + 1);
+        printf("[UP/DOWN] Pilih | [LEFT/RIGHT] Halaman | [ENTER] Detail | [E] Edit | [X] Nonaktifkan");
+
+        gotoXY(table_x, footer_y + 2);
+        printf("[A] Tambah | [0] Kembali | Aksi: pilih data dulu, lalu tekan tombol aksi.");
+
+        int ch = _getch();
+        if (ch == '0') return;
+
+        if (ch == 0 || ch == 224) {
+            int ext = _getch();
+            if (ext == 72) { if (rows_on_page > 0 && selected > 0) selected--; else Beep(800, 60); continue; }
+            if (ext == 80) { if (rows_on_page > 0 && selected + 1 < rows_on_page) selected++; else Beep(800, 60); continue; }
+            if (ext == 75) { if (page > 0) { page--; selected = 0; } else Beep(800, 60); continue; }
+            if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
+        }
+
+        if (ch == 'a' || ch == 'A') { kereta_popup_add(split_x, content_w); continue; }
+
+        if (ch == 13) {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            kereta_popup_detail(split_x, content_w, &g_kereta[start + selected]);
+            continue;
+        }
+
+        if (ch == 'e' || ch == 'E') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_kereta[idx].active) { Beep(800, 60); continue; }
+            kereta_popup_edit(split_x, content_w, idx);
+            continue;
+        }
+
+        if (ch == 'x' || ch == 'X') {
+            if (rows_on_page == 0) { Beep(800, 60); continue; }
+            int idx = start + selected;
+            if (!g_kereta[idx].active) { Beep(800, 60); continue; }
+            kereta_popup_delete_soft(split_x, content_w, idx);
+            continue;
+        }
+    }
+}
+
 
 static const char* role_to_label(Role role) {
     switch (role) {
@@ -1218,10 +2176,12 @@ static void dashboard_main(int account_index) {
                 view_akun();
             }
         } else if (me->role == ROLE_DATA) {
-            if (ch == '2' || ch == '3' || ch == '1') {
-                gotoXY(center_x - 22, start_y + (menu_count*2) + 4);
-                printf(">> Menu Data: CRUD belum diintegrasikan (placeholder)");
-                Sleep(900);
+            if (ch == '1') {
+                view_penumpang();
+            } else if (ch == '2') {
+                view_stasiun();
+            } else if (ch == '3') {
+                view_kereta();
             }
         } else if (me->role == ROLE_TRANSAKSI) {
             if (ch == '1' || ch == '2') {
@@ -1299,6 +2259,7 @@ void login_screen() {
 void ui_init() {
     akun_init();
     karyawan_init();
+    penumpang_init();
     stasiun_init();
     kereta_init();
 }

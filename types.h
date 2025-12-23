@@ -31,20 +31,37 @@ typedef struct {
     int active;
 } Karyawan;
 
-/* Master 3: Stasiun */
+/* Master 3: Penumpang */
+typedef struct {
+    char id[15];
+    char nama[50];
+    char email[50];
+    char no_telp[20];
+    char tanggal_lahir[16];   /* contoh: 01-01-2000 */
+    char jenis_kelamin[16];   /* L / P */
+    int active;
+} Penumpang;
+
+/* Master 4: Stasiun */
 typedef struct {
     char id[10];
+    char kode[10];
     char nama[50];
+    int  mdpl;
     char kota[50];
+    char alamat[80];
+    char status[16];
     int active;
 } Stasiun;
 
-/* Master 4: Kereta */
+/* Master 5: Kereta */
 typedef struct {
     char kode[10];
     char nama[50];
     char kelas[20];
-    int gerbong;
+    int  kapasitas;
+    int  gerbong;
+    char status[16];
     int active;
 } Kereta;
 
