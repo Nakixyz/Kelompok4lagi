@@ -117,10 +117,14 @@ static void karyawan_seed() {
 
 typedef struct {
     char id[10];
+    char kode[10];
     char nama[50];
-    char kota[50];
+    int  mdpl;
+    char kota[30];
+    char alamat[100];
     int active;
 } Stasiun;
+
 
 static Stasiun g_stasiun[MAX_RECORDS];
 static int g_stasiunCount = 0;

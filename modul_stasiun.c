@@ -1,31 +1,109 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "modul_stasiun.h"
 #include "globals.h"
 
-#define FILE_STASIUN "stasiuns.dat"
+#define FILE_STASIUN "stasiuns_v2.dat"
 
-/* kalau cls() ada di file UI, biar modul ini tetap bisa compile */
-extern void cls();
+typedef struct {
+    const char *nama;
+    const char *kode;   // singkatan
+    int mdpl;
+    const char *kota;
+    const char *alamat; // boleh NULL kalau mau auto-generate
+} StasiunPreset;
 
-/* helper: hapus newline dari fgets */
-static void trim_newline(char *s) {
-    if (!s) return;
-    s[strcspn(s, "\n")] = '\0';
+/* ==========================
+   PRESET DATA (HARUS DI ATAS)
+   ========================== */
+static const StasiunPreset PRESET_STASIUN[] = {
+    {"JAKARTA",         "JKT",  8,   "Kota Jakarta",         "Jl. Stasiun Jakarta No. 1, Kota Jakarta"},
+    {"SURABAYA",        "SBY",  5,   "Kota Surabaya",        "Jl. Stasiun Surabaya No. 1, Kota Surabaya"},
+    {"BANDUNG",         "BDG",  709, "Kota Bandung",         "Jl. Stasiun Bandung No. 1, Kota Bandung"},
+    {"MEDAN",           "MDN",  2,   "Kota Medan",           "Jl. Stasiun Medan No. 1, Kota Medan"},
+    {"BEKASI",          "BKS",  19,  "Kota Bekasi",          "Jl. Stasiun Bekasi No. 1, Kota Bekasi"},
+    {"DEPOK",           "DPK",  50,  "Kota Depok",           "Jl. Stasiun Depok No. 1, Kota Depok"},
+    {"TANGERANG",       "TGR",  12,  "Kota Tangerang",       "Jl. Stasiun Tangerang No. 1, Kota Tangerang"},
+    {"SEMARANG",        "SMG",  4,   "Kota Semarang",        "Jl. Stasiun Semarang No. 1, Kota Semarang"},
+    {"PALEMBANG",       "PLB",  8,   "Kota Palembang",       "Jl. Stasiun Palembang No. 1, Kota Palembang"},
+    {"MAKASSAR",        "MKS",  6,   "Kota Makassar",        "Jl. Stasiun Makassar No. 1, Kota Makassar"},
+
+    {"BOGOR",           "BGR",  265, "Kota Bogor",           "Jl. Stasiun Bogor No. 1, Kota Bogor"},
+    {"BATAM",           "BTM",  7,   "Kota Batam",           "Jl. Stasiun Batam No. 1, Kota Batam"},
+    {"PEKANBARU",       "PKU",  12,  "Kota Pekanbaru",       "Jl. Stasiun Pekanbaru No. 1, Kota Pekanbaru"},
+    {"BANDAR LAMPUNG",  "BDL",  10,  "Kota Bandar Lampung",  "Jl. Stasiun Bandar Lampung No. 1, Kota Bandar Lampung"},
+    {"PADANG",          "PDG",  5,   "Kota Padang",          "Jl. Stasiun Padang No. 1, Kota Padang"},
+    {"MALANG",          "MLG",  445, "Kota Malang",          "Jl. Stasiun Malang No. 1, Kota Malang"},
+    {"SAMARINDA",       "SMD",  8,   "Kota Samarinda",       "Jl. Stasiun Samarinda No. 1, Kota Samarinda"},
+    {"DENPASAR",        "DPS",  12,  "Kota Denpasar",        "Jl. Stasiun Denpasar No. 1, Kota Denpasar"},
+    {"TASIKMALAYA",     "TSM",  351, "Kota Tasikmalaya",     "Jl. Stasiun Tasikmalaya No. 1, Kota Tasikmalaya"},
+    {"PONTIANAK",       "PTK",  1,   "Kota Pontianak",       "Jl. Stasiun Pontianak No. 1, Kota Pontianak"},
+
+    {"BANJARMASIN",     "BJM",  3,   "Kota Banjarmasin",     "Jl. Stasiun Banjarmasin No. 1, Kota Banjarmasin"},
+    {"BALIKPAPAN",      "BPP",  6,   "Kota Balikpapan",      "Jl. Stasiun Balikpapan No. 1, Kota Balikpapan"},
+    {"JAMBI",           "JMB",  11,  "Kota Jambi",           "Jl. Stasiun Jambi No. 1, Kota Jambi"},
+    {"MANADO",          "MND",  7,   "Kota Manado",          "Jl. Stasiun Manado No. 1, Kota Manado"},
+    {"MATARAM",         "MTR",  10,  "Kota Mataram",         "Jl. Stasiun Mataram No. 1, Kota Mataram"},
+    {"KUPANG",          "KPG",  55,  "Kota Kupang",          "Jl. Stasiun Kupang No. 1, Kota Kupang"},
+    {"AMBON",           "AMB",  9,   "Kota Ambon",           "Jl. Stasiun Ambon No. 1, Kota Ambon"},
+    {"JAYAPURA",        "JYP",  3,   "Kota Jayapura",        "Jl. Stasiun Jayapura No. 1, Kota Jayapura"},
+    {"CIREBON",         "CRE",  5,   "Kota Cirebon",         "Jl. Stasiun Cirebon No. 1, Kota Cirebon"},
+    {"SUKABUMI",        "SKB",  584, "Kota Sukabumi",        "Jl. Stasiun Sukabumi No. 1, Kota Sukabumi"},
+
+    {"KEDIRI",          "KDR",  67,  "Kota Kediri",          "Jl. Stasiun Kediri No. 1, Kota Kediri"},
+    {"PROBOLINGGO",     "PBL",  14,  "Kota Probolinggo",     "Jl. Stasiun Probolinggo No. 1, Kota Probolinggo"},
+    {"TEGAL",           "TGL",  3,   "Kota Tegal",           "Jl. Stasiun Tegal No. 1, Kota Tegal"},
+    {"SERANG",          "SRG",  14,  "Kota Serang",          "Jl. Stasiun Serang No. 1, Kota Serang"},
+    {"BONTANG",         "BNT",  5,   "Kota Bontang",         "Jl. Stasiun Bontang No. 1, Kota Bontang"},
+    {"BINJAI",          "BNJ",  28,  "Kota Binjai",          "Jl. Stasiun Binjai No. 1, Kota Binjai"},
+    {"PEMATANGSIANTAR", "PMS",  400, "Kota Pematangsiantar", "Jl. Stasiun Pematangsiantar No. 1, Kota Pematangsiantar"},
+    {"TANJUNGPINANG",   "TPI",  15,  "Kota Tanjungpinang",   "Jl. Stasiun Tanjungpinang No. 1, Kota Tanjungpinang"},
+    {"PANGKALPINANG",   "PKP",  13,  "Kota Pangkalpinang",   "Jl. Stasiun Pangkalpinang No. 1, Kota Pangkalpinang"},
+    {"GORONTALO",       "GTO",  23,  "Kota Gorontalo",       "Jl. Stasiun Gorontalo No. 1, Kota Gorontalo"},
+
+    {"PALU",            "PLU",  6,   "Kota Palu",            "Jl. Stasiun Palu No. 1, Kota Palu"},
+    {"KENDARI",         "KDI",  18,  "Kota Kendari",         "Jl. Stasiun Kendari No. 1, Kota Kendari"},
+    {"TARAKAN",         "TRK",  6,   "Kota Tarakan",         "Jl. Stasiun Tarakan No. 1, Kota Tarakan"},
+    {"LHOKSEUMAWE",     "LSM",  3,   "Kota Lhokseumawe",     "Jl. Stasiun Lhokseumawe No. 1, Kota Lhokseumawe"},
+    {"BANDA ACEH",      "BAC",  10,  "Kota Banda Aceh",      "Jl. Stasiun Banda Aceh No. 1, Kota Banda Aceh"},
+    {"SINGKAWANG",      "SKW",  9,   "Kota Singkawang",      "Jl. Stasiun Singkawang No. 1, Kota Singkawang"},
+    {"PRABUMULIH",      "PRB",  50,  "Kota Prabumulih",      "Jl. Stasiun Prabumulih No. 1, Kota Prabumulih"},
+    {"LUBUKLINGGAU",    "LLG",  129, "Kota Lubuklinggau",    "Jl. Stasiun Lubuklinggau No. 1, Kota Lubuklinggau"},
+    {"MAGELANG",        "MGL",  380, "Kota Magelang",        "Jl. Stasiun Magelang No. 1, Kota Magelang"},
+    {"PURWOKERTO",      "PWT",  75,  "Kota Purwokerto",      "Jl. Stasiun Purwokerto No. 1, Kota Purwokerto"},
+};
+
+/* hitung jumlah preset: aman & simple */
+static int preset_count(void) {
+    return (int)(sizeof(PRESET_STASIUN) / sizeof(PRESET_STASIUN[0]));
 }
 
-/* helper: baca input string aman + tidak loncat */
-static void read_line(const char *label, char *buf, size_t sz) {
-    printf("%s", label);
-    if (fgets(buf, (int)sz, stdin) == NULL) {
-        buf[0] = '\0';
-        return;
+static void to_upper_copy(const char *src, char *dst, size_t dstsz) {
+    size_t i = 0;
+    for (; src && src[i] && i + 1 < dstsz; i++) {
+        dst[i] = (char)toupper((unsigned char)src[i]);
     }
-    trim_newline(buf);
+    dst[i] = '\0';
 }
 
-static void stasiun_save() {
+static const StasiunPreset* find_preset_by_nama(const char *nama) {
+    if (!nama || !*nama) return NULL;
+
+    char key[64];
+    to_upper_copy(nama, key, sizeof(key));
+
+    for (int i = 0; i < preset_count(); i++) {
+        if (strcmp(key, PRESET_STASIUN[i].nama) == 0) return &PRESET_STASIUN[i];
+    }
+    return NULL;
+}
+
+static void stasiun_save(void) {
+    /* kalau print ini ganggu UI, boleh hapus */
+    /* printf("Saving to: %s\n", FILE_STASIUN); */
+
     FILE *f = fopen(FILE_STASIUN, "wb");
     if (f) {
         fwrite(g_stasiun, sizeof(Stasiun), g_stasiunCount, f);
@@ -33,7 +111,7 @@ static void stasiun_save() {
     }
 }
 
-void stasiun_init() {
+void stasiun_init(void) {
     FILE *f = fopen(FILE_STASIUN, "rb");
     if (f) {
         g_stasiunCount = (int)fread(g_stasiun, sizeof(Stasiun), MAX_RECORDS, f);
@@ -44,18 +122,26 @@ void stasiun_init() {
 
     /* Seed 50 Data Dummy */
     if (g_stasiunCount == 0) {
+        int pc = preset_count();
+
         for (int i = 1; i <= 50 && g_stasiunCount < MAX_RECORDS; i++) {
+            const StasiunPreset *p = &PRESET_STASIUN[(i - 1) % pc];
+
             Stasiun s;
-            memset(&s, 0, sizeof(Stasiun));
+            memset(&s, 0, sizeof(s));
 
             snprintf(s.id, sizeof(s.id), "STS%03d", i);
-            snprintf(s.kode, sizeof(s.kode), "KD%03d", i);
-            snprintf(s.nama, sizeof(s.nama), "Stasiun Kota %02d", i);
 
-            char kotaChar = 'A' + (i % 5);
-            snprintf(s.kota, sizeof(s.kota), "Kota %c", kotaChar);
+            strncpy(s.nama, p->nama, sizeof(s.nama) - 1);
+            strncpy(s.kode, p->kode, sizeof(s.kode) - 1);
+            s.mdpl = p->mdpl;
+            strncpy(s.kota, p->kota, sizeof(s.kota) - 1);
 
-            snprintf(s.alamat, sizeof(s.alamat), "Alamat Stasiun Kota %02d", i);
+            if (p->alamat && p->alamat[0]) {
+                strncpy(s.alamat, p->alamat, sizeof(s.alamat) - 1);
+            } else {
+                snprintf(s.alamat, sizeof(s.alamat), "Jl. Stasiun %s, %s", s.nama, s.kota);
+            }
 
             s.active = 1;
             g_stasiun[g_stasiunCount++] = s;
@@ -64,48 +150,57 @@ void stasiun_init() {
     }
 }
 
-/* ==========================
-   UI: CREATE (tampilan)
-   ========================== */
-void stasiunCreate() {
-    char id[10], kode[10], nama[50], kota[30], alamat[100];
+static void sanitize_field(char *s, size_t cap) {
+    if (!s || cap == 0) return;
 
-    cls();
-    printf("============== TAMBAH DATA STASIUN ==============\n");
-
-    read_line("ID Stasiun     : ", id, sizeof(id));
-    read_line("Kode Stasiun   : ", kode, sizeof(kode));
-    read_line("Nama Stasiun   : ", nama, sizeof(nama));
-    read_line("Kota           : ", kota, sizeof(kota));
-    read_line("Alamat         : ", alamat, sizeof(alamat));
-
-    /* validasi simple */
-    if (id[0] == '\0' || kode[0] == '\0' || nama[0] == '\0') {
-        printf("\n>> Gagal: ID/Kode/Nama tidak boleh kosong.\n");
-        printf("Tekan ENTER untuk kembali...");
-        getchar();
-        return;
+    // hapus \r \n
+    for (size_t i = 0; s[i] && i < cap; i++) {
+        if (s[i] == '\r' || s[i] == '\n') {
+            s[i] = '\0';
+            break;
+        }
     }
 
-    if (stasiun_find_index_by_id(id) != -1) {
-        printf("\n>> Gagal: ID %s sudah ada.\n", id);
-        printf("Tekan ENTER untuk kembali...");
-        getchar();
-        return;
+    // trim spasi depan
+    size_t start = 0;
+    while (start < cap && (s[start] == ' ' || s[start] == '\t')) start++;
+
+    if (start > 0) {
+        size_t len = strnlen(s, cap);
+        if (start < len) memmove(s, s + start, len - start + 1);
+        else s[0] = '\0';
     }
 
-    stasiun_create(id, kode, nama, kota, alamat);
+    // trim spasi belakang
+    size_t n = strnlen(s, cap);
+    while (n > 0 && (s[n-1] == ' ' || s[n-1] == '\t')) {
+        s[--n] = '\0';
+    }
 
-    printf("\n>> Data stasiun berhasil ditambahkan.\n");
-    printf("Tekan ENTER untuk kembali...");
-    getchar();
+    // rapihin spasi ganda jadi 1
+    char out[512];
+    size_t j = 0;
+    int in_space = 0;
+
+    for (size_t i = 0; s[i] && j + 1 < sizeof(out); i++) {
+        char c = s[i];
+        if (c == ' ' || c == '\t') {
+            if (!in_space) out[j++] = ' ';
+            in_space = 1;
+        } else {
+            out[j++] = c;
+            in_space = 0;
+        }
+    }
+    out[j] = '\0';
+
+    // copy balik sesuai kapasitas s
+    strncpy(s, out, cap - 1);
+    s[cap - 1] = '\0';
 }
 
-/* ==========================
-   LOGIC: CREATE (PDM)
-   ========================== */
 void stasiun_create(const char* id, const char* kode, const char* nama,
-                    const char* kota, const char* alamat) {
+                    int mdpl, const char* kota, const char* alamat) {
     if (g_stasiunCount >= MAX_RECORDS) return;
 
     Stasiun s;
@@ -114,118 +209,39 @@ void stasiun_create(const char* id, const char* kode, const char* nama,
     strncpy(s.id, id, sizeof(s.id) - 1);
     strncpy(s.kode, kode, sizeof(s.kode) - 1);
     strncpy(s.nama, nama, sizeof(s.nama) - 1);
+    s.mdpl = mdpl;
     strncpy(s.kota, kota, sizeof(s.kota) - 1);
     strncpy(s.alamat, alamat, sizeof(s.alamat) - 1);
 
-    s.active = 1;
+    s.id[sizeof(s.id)-1] = '\0';
+    s.kode[sizeof(s.kode)-1] = '\0';
+    s.nama[sizeof(s.nama)-1] = '\0';
+    s.kota[sizeof(s.kota)-1] = '\0';
+    s.alamat[sizeof(s.alamat)-1] = '\0';
 
+    sanitize_field(s.nama, sizeof(s.nama));
+    sanitize_field(s.kode, sizeof(s.kode));
+    sanitize_field(s.kota, sizeof(s.kota));
+    sanitize_field(s.alamat, sizeof(s.alamat));
+
+    s.active = 1;
     g_stasiun[g_stasiunCount++] = s;
     stasiun_save();
 }
 
-/* ==========================
-   READ (tampilan tabel)
-   ========================== */
-void stasiunRead() {
-    printf("==========================================================================\n");
-    printf("%-4s %-10s %-10s %-20s %-15s %-20s\n",
-           "No", "ID", "Kode", "Nama Stasiun", "Kota", "Alamat");
-    printf("==========================================================================\n");
 
-    int no = 1;
-    int found = 0;
-
-    for (int i = 0; i < g_stasiunCount; i++) {
-        if (g_stasiun[i].active) {
-            printf("%-4d %-10.10s %-10.10s %-20.20s %-15.15s %-20.20s\n",
-                   no++,
-                   g_stasiun[i].id,
-                   g_stasiun[i].kode,
-                   g_stasiun[i].nama,
-                   g_stasiun[i].kota,
-                   g_stasiun[i].alamat);
-            found = 1;
-        }
-    }
-
-    if (!found) {
-        printf("Data stasiun kosong.\n");
-    }
-}
-
-void stasiun_read_by_id(const char* id) {
-    int index = stasiun_find_index_by_id(id);
-    if (index == -1) {
-        printf("Stasiun tidak ditemukan.\n");
-        return;
-    }
-
-    printf("ID STASIUN  : %s\n", g_stasiun[index].id);
-    printf("KODE        : %s\n", g_stasiun[index].kode);
-    printf("NAMA        : %s\n", g_stasiun[index].nama);
-    printf("KOTA        : %s\n", g_stasiun[index].kota);
-    printf("ALAMAT      : %s\n", g_stasiun[index].alamat);
-}
-
-/* ==========================
-   UI: UPDATE
-   ========================== */
-void stasiunUpdate() {
-    char id[10], kode[10], nama[50], kota[30], alamat[100];
-
-    cls();
-    printf("============== UPDATE DATA STASIUN ==============\n");
-
-    read_line("Masukkan ID Stasiun yang akan diupdate : ", id, sizeof(id));
-
-    int index = stasiun_find_index_by_id(id);
-    if (index == -1) {
-        printf("\n>> Stasiun tidak ditemukan.\n");
-        printf("Tekan ENTER untuk kembali...");
-        getchar();
-        return;
-    }
-
-    printf("\nData Lama:\n");
-    printf("Kode   : %s\n", g_stasiun[index].kode);
-    printf("Nama   : %s\n", g_stasiun[index].nama);
-    printf("Kota   : %s\n", g_stasiun[index].kota);
-    printf("Alamat : %s\n", g_stasiun[index].alamat);
-
-    printf("\nMasukkan Data Baru\n");
-    read_line("Kode Stasiun   : ", kode, sizeof(kode));
-    read_line("Nama Stasiun   : ", nama, sizeof(nama));
-    read_line("Kota           : ", kota, sizeof(kota));
-    read_line("Alamat         : ", alamat, sizeof(alamat));
-
-    if (kode[0] == '\0' || nama[0] == '\0') {
-        printf("\n>> Gagal: Kode/Nama tidak boleh kosong.\n");
-        printf("Tekan ENTER untuk kembali...");
-        getchar();
-        return;
-    }
-
-    stasiun_update(id, kode, nama, kota, alamat);
-
-    printf("\n>> Data stasiun berhasil diupdate.\n");
-    printf("Tekan ENTER untuk kembali...");
-    getchar();
-}
-
-/* ==========================
-   LOGIC: UPDATE (PDM)
-   ========================== */
 void stasiun_update(const char* id, const char* kode, const char* nama,
-                    const char* kota, const char* alamat) {
+                    int mdpl, const char* kota, const char* alamat) {
     int index = stasiun_find_index_by_id(id);
     if (index == -1) return;
 
-    /* aman: -1 dan pasti null-terminated */
     strncpy(g_stasiun[index].kode, kode, sizeof(g_stasiun[index].kode) - 1);
     g_stasiun[index].kode[sizeof(g_stasiun[index].kode) - 1] = '\0';
 
     strncpy(g_stasiun[index].nama, nama, sizeof(g_stasiun[index].nama) - 1);
     g_stasiun[index].nama[sizeof(g_stasiun[index].nama) - 1] = '\0';
+
+    g_stasiun[index].mdpl = mdpl;
 
     strncpy(g_stasiun[index].kota, kota, sizeof(g_stasiun[index].kota) - 1);
     g_stasiun[index].kota[sizeof(g_stasiun[index].kota) - 1] = '\0';
@@ -233,53 +249,14 @@ void stasiun_update(const char* id, const char* kode, const char* nama,
     strncpy(g_stasiun[index].alamat, alamat, sizeof(g_stasiun[index].alamat) - 1);
     g_stasiun[index].alamat[sizeof(g_stasiun[index].alamat) - 1] = '\0';
 
+    sanitize_field(g_stasiun[index].kode, sizeof(g_stasiun[index].kode));
+    sanitize_field(g_stasiun[index].nama, sizeof(g_stasiun[index].nama));
+    sanitize_field(g_stasiun[index].kota, sizeof(g_stasiun[index].kota));
+    sanitize_field(g_stasiun[index].alamat, sizeof(g_stasiun[index].alamat));
+
     stasiun_save();
 }
 
-/* ==========================
-   UI: DELETE
-   ========================== */
-void stasiunDelete() {
-    char id[10];
-    char confirm;
-
-    cls();
-    printf("============== HAPUS DATA STASIUN ==============\n");
-
-    read_line("Masukkan ID Stasiun yang akan dihapus : ", id, sizeof(id));
-
-    int index = stasiun_find_index_by_id(id);
-    if (index == -1) {
-        printf("\n>> Stasiun tidak ditemukan.\n");
-        printf("Tekan ENTER untuk kembali...");
-        getchar();
-        return;
-    }
-
-    printf("\nData yang akan dihapus:\n");
-    printf("ID     : %s\n", g_stasiun[index].id);
-    printf("Nama   : %s\n", g_stasiun[index].nama);
-    printf("Kota   : %s\n", g_stasiun[index].kota);
-    printf("Alamat : %s\n", g_stasiun[index].alamat);
-
-    printf("\nYakin hapus data ini? (y/n): ");
-    confirm = getchar();
-    getchar(); /* buang newline */
-
-    if (confirm == 'y' || confirm == 'Y') {
-        stasiun_delete_by_id(id);
-        printf("\n>> Data stasiun berhasil dihapus (soft delete).\n");
-    } else {
-        printf("\n>> Penghapusan dibatalkan.\n");
-    }
-
-    printf("Tekan ENTER untuk kembali...");
-    getchar();
-}
-
-/* ==========================
-   LOGIC: DELETE
-   ========================== */
 void stasiun_delete_by_id(const char* id) {
     int index = stasiun_find_index_by_id(id);
     if (index == -1) return;
@@ -288,9 +265,22 @@ void stasiun_delete_by_id(const char* id) {
     stasiun_save();
 }
 
-/* ==========================
-   HELPER: FIND BY ID (PK)
-   ========================== */
+void stasiun_restore_by_id(const char* id) {
+    int index = stasiun_find_index_by_id_all(id);
+    if (index == -1) return;
+
+    g_stasiun[index].active = 1;
+    stasiun_save();
+}
+
+/* HELPER: FIND BY ID (PK) */
+int stasiun_find_index_by_id_all(const char* id) {
+    for (int i = 0; i < g_stasiunCount; i++) {
+        if (strcmp(g_stasiun[i].id, id) == 0) return i;
+    }
+    return -1;
+}
+
 int stasiun_find_index_by_id(const char* id) {
     for (int i = 0; i < g_stasiunCount; i++) {
         if (g_stasiun[i].active && strcmp(g_stasiun[i].id, id) == 0) {

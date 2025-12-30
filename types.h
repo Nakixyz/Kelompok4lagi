@@ -34,6 +34,7 @@ typedef struct {
     char id[10];           // id_stasiun
     char kode[10];         // kode_stasiun
     char nama[50];         // nama_stasiun
+    int mdpl;
     char kota[30];
     char alamat[100];
     int active;            // atribut aplikasi
