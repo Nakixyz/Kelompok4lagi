@@ -1,10 +1,10 @@
-#ifndef MODUL_KARYAWAN_H
-#define MODUL_KARYAWAN_H
+#ifndef MASTER_KARYAWAN_H
+#define MASTER_KARYAWAN_H
 
 #include <stddef.h>
 #include "types.h"
 
-void karyawan_init();
+void karyawan_init(void);
 void karyawan_create(const char* id, const char* nama, const char* email, const char* jabatan);
 void karyawan_create_auto(char *out_id, size_t out_sz,
                           const char* nama, const char* email, const char* jabatan);

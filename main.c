@@ -8,7 +8,7 @@ void set_fullscreen_mode() {
     HWND hwnd = GetConsoleWindow();
 
     // 2. Ubah Style Jendela: Hapus Border, Judul, Tombol X, dll
-    // Ini bikin jendelanya jadi "telanjang" tanpa bingkai
+    // Ini bikin jendelanya jadi tanpa bingkai
     LONG style = GetWindowLong(hwnd, GWL_STYLE);
     style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
     SetWindowLong(hwnd, GWL_STYLE, style);
