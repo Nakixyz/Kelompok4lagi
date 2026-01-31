@@ -5,10 +5,12 @@
   </component>
   <component name="BackendCodeEditorMiscSettings">
     <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
+    <option name="/Default/Housekeeping/GlobalSettingsUpgraded/IsUpgraded/@EntryValue" value="true" type="bool" />
+    <option name="/Default/RiderDebugger/RiderRestoreDecompile/RestoreDecompileSetting/@EntryValue" value="false" type="bool" />
   </component>
-  <component name="CMakePresetLoader"><![CDATA[{
-  "useNewFormat": true
-}]]></component>
+  <component name="CMakePresetLoader">{
+  &quot;useNewFormat&quot;: true
+}</component>
   <component name="CMakeProjectFlavorService">
     <option name="flavorId" value="CMakePlainProjectFlavor" />
   </component>
@@ -17,7 +19,7 @@
   </component>
   <component name="CMakeRunConfigurationManager">
     <generated>
-      <config projectName="Kelompok4lagi" targetName="Kelompok4lagi" />
+      <config projectName="p_split" targetName="p_split" />
     </generated>
   </component>
   <component name="CMakeSettings">
@@ -26,29 +28,15 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="dc194d70-af97-49ba-a79f-67d2083ff479" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/TiketKereta.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/material_theme_project_new.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+    <list default="true" id="dc194d70-af97-49ba-a79f-67d2083ff479" name="Changes" comment="p">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/globals.c" beforeDir="false" afterPath="$PROJECT_DIR$/globals.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/globals.h" beforeDir="false" afterPath="$PROJECT_DIR$/globals.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/main.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/master/penumpang/penumpang_R.c" beforeDir="false" afterPath="$PROJECT_DIR$/master/penumpang/penumpang_R.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modul_akun.c" beforeDir="false" afterPath="$PROJECT_DIR$/modul_akun.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modul_akun.h" beforeDir="false" afterPath="$PROJECT_DIR$/modul_akun.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_karyawan.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_karyawan.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_kereta.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_kereta.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_stasiun.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/modul_stasiun.h" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/types.h" beforeDir="false" afterPath="$PROJECT_DIR$/types.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui_app.c" beforeDir="false" afterPath="$PROJECT_DIR$/ui_app.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui_app.h" beforeDir="false" afterPath="$PROJECT_DIR$/ui_app.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -62,27 +50,27 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "Nakixyz"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Nakixyz&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/Nakixyz/Kelompok4lagi.git",
-    "accountId": "51c1e41c-3cb6-4642-9e4a-5b9bf0b11ec8"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Nakixyz/Kelompok4lagi.git&quot;,
+    &quot;accountId&quot;: &quot;51c1e41c-3cb6-4642-9e4a-5b9bf0b11ec8&quot;
   }
-}]]></component>
+}</component>
   <component name="ProjectApplicationVersion">
     <option name="ide" value="CLion" />
     <option name="majorVersion" value="2025" />
     <option name="minorVersion" value="2.1" />
     <option name="productBranch" value="Classic" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="38m2mIIdlO1t7ULOnHUavDR7QyS" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -90,6 +78,8 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "CMake Application.Kelompok4lagi.executor": "Run",
+    "CMake Application.p_split.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.RadMigrateCodeStyle": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -97,19 +87,30 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "RunOnceActivity.west.config.association.type.startup.service": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "git-widget-placeholder": "master",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
   <component name="RunManager">
-    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+    <configuration name="Kelompok4lagi" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="true" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Kelompok4lagi" TARGET_NAME="Kelompok4lagi" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="Kelompok4lagi" RUN_TARGET_NAME="Kelompok4lagi">
       <method v="2">
-        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="Kelompok4lagi" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="true" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Kelompok4lagi" TARGET_NAME="Kelompok4lagi" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="Kelompok4lagi" RUN_TARGET_NAME="Kelompok4lagi">
+    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="p_split" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="true" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="p_split" TARGET_NAME="p_split" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="p_split" RUN_TARGET_NAME="p_split">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
@@ -122,11 +123,32 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1769390585699</updated>
-      <workItem from="1769390588393" duration="32000" />
+      <workItem from="1769390588393" duration="89000" />
+      <workItem from="1769390742514" duration="5121000" />
+      <workItem from="1769570802636" duration="2456000" />
+      <workItem from="1769831577244" duration="165000" />
     </task>
+    <task id="LOCAL-00001" summary="p">
+      <option name="closed" value="true" />
+      <created>1769390673922</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1769390673922</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VCPKGProject">
+    <isAutomaticCheckingOnLaunch value="false" />
+    <isAutomaticFoundErrors value="true" />
+    <isAutomaticReloadCMake value="true" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="p" />
+    <option name="LAST_COMMIT_MESSAGE" value="p" />
   </component>
 </project>

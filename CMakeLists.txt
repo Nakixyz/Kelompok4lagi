@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 4.0)
-project(Kelompok4lagi C)
+project(p_split C)
 
 set(CMAKE_C_STANDARD 11)
 
 include_directories(.)
 include_directories(master)
-include_directories(master/Karyawan)
 include_directories(master/kereta)
 include_directories(master/penumpang)
 include_directories(master/stasiun)
@@ -13,13 +12,7 @@ include_directories(transaksi)
 include_directories(transaksi/jadwal)
 include_directories(transaksi/pembayaran)
 
-add_executable(Kelompok4lagi
-        master/Karyawan/karyawan.h
-        master/Karyawan/karyawan_C.c
-        master/Karyawan/karyawan_D.c
-        master/Karyawan/karyawan_R.c
-        master/Karyawan/karyawan_shared.h
-        master/Karyawan/karyawan_U.c
+add_executable(p_split
         master/kereta/kereta.h
         master/kereta/kereta_C.c
         master/kereta/kereta_D.c

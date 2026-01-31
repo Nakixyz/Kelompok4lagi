@@ -1,4 +1,4 @@
-#include <stdio.h>
+    #include <stdio.h>
 #include <stdlib.h>
 #include <conio.h>
 #include <windows.h>
@@ -11,7 +11,6 @@
 
 // Include Modul Logic
 #include "modul_akun.h"
-#include "master/Karyawan/karyawan.h"
 #include "master/penumpang/penumpang.h"
 #include "master/stasiun/stasiun.h"
 #include "master/kereta/kereta.h"
@@ -30,7 +29,6 @@ static int g_ui_cursor_y = 0;
 static int kereta_cmp_idx(const void *a, const void *b);
 static int stasiun_cmp_idx(const void *a, const void *b);
 static int penumpang_cmp_idx(const void *a, const void *b);
-static int karyawan_cmp_idx(const void *a, const void *b);
 static int jadwal_cmp_idx(const void *a, const void *b);
 static int pembayaran_cmp_idx(const void *a, const void *b);
 
@@ -774,6 +772,8 @@ static void input_email_filtered(char *buffer, int buffer_sz, int max_chars) {
         }
 
         if (is_email_char_ui(ch)) {
+            /* Email tidak menerima huruf besar: tampilkan & simpan sebagai lowercase */
+            if (isupper((unsigned char)ch)) ch = tolower((unsigned char)ch);
             if (i < max_chars) {
                 buffer[i++] = (char)ch;
                 buffer[i] = '\0';
@@ -1318,6 +1318,35 @@ static void draw_popup_box(int x, int y, int w, int h, const char *title) {
     }
 }
 
+/* Helper: gambar 1 baris label form ("Label : ") dan kembalikan posisi input.
+   Ditaruh di area umum (bukan di blok modul Karyawan) karena dipakai oleh modul Akun. */
+static void form_row_draw(int pop_x, int pop_y, int row_y,
+                          int label_w, int input_w,
+                          const char *label,
+                          int *out_x_input, int *out_y_input) {
+    int x_label = pop_x + 3;
+    int x_input = x_label + label_w + 3; /* label + " : " */
+    int y = pop_y + row_y;
+
+    gotoXY(x_label, y);
+    printf("%-*.*s : ", label_w, label_w, label ? label : "");
+
+    /* Bersihkan area input agar tidak ada sisa karakter dari render sebelumnya. */
+    int screen_w = get_screen_width();
+    int safe_right = screen_w - FRAME_THICK - 1 - CONTENT_MARGIN;
+    if (safe_right < 0) safe_right = screen_w - 1;
+    int max_w = safe_right - x_input + 1;
+    if (max_w < 0) max_w = 0;
+    if (input_w > max_w) input_w = max_w;
+    gotoXY(x_input, y);
+    for (int i = 0; i < input_w; i++) putchar(' ');
+
+    if (out_x_input) *out_x_input = x_input;
+    if (out_y_input) *out_y_input = y;
+}
+
+
+
 /* -------------------------------------------------------------------------
    FORM ACTIONS BAR
    Menampilkan tombol aksi di bawah form agar konsisten & profesional.
@@ -1531,6 +1560,19 @@ static int looks_like_email(const char *s) {
     return 1;
 }
 
+/* No. Telp: tepat 12 digit dan diawali '08' */
+static int looks_like_phone_08_len12(const char *s) {
+    if (!s) return 0;
+    size_t n = strlen(s);
+    if (n != 12) return 0;
+    if (s[0] != '0' || s[1] != '8') return 0;
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] < '0' || s[i] > '9') return 0;
+    }
+    return 1;
+}
+
+
 /* --- Validasi khusus Kereta (UI) --- */
 static int is_alpha_space_only(const char *s) {
     if (!s || !*s) return 0;
@@ -1629,9 +1671,10 @@ static int build_karyawan_indexes_all(int *out_idx, int max_out) {
 
 /* mapping: No (tampilan) -> index asli array (akun) */
 static int build_active_account_indexes(int *out_idx, int max_out) {
+    /* tampilkan semua akun (aktif + nonaktif) agar kolom Status bermakna */
     int n = 0;
     for (int i = 0; i < g_accountCount && n < max_out; i++) {
-        if (g_accounts[i].active) out_idx[n++] = i;
+        out_idx[n++] = i;
     }
     return n;
 }
@@ -1685,6 +1728,17 @@ static void ui_form_message(int pop_x, int pop_y, int pop_w, int pop_h, const ch
 static void ui_form_message_clear(int pop_x, int pop_y, int pop_w, int pop_h) {
     ui_form_message(pop_x, pop_y, pop_w, pop_h, "");
 }
+
+/* Helper: validasi format dengan pesan konsisten (tanpa keluar dari popup) */
+static int ui_require_valid(int ok, int pop_x, int pop_y, int pop_w, int pop_h, const char *msg) {
+    if (ok) {
+        ui_form_message_clear(pop_x, pop_y, pop_w, pop_h);
+        return 1;
+    }
+    Beep(700, 80);
+    ui_form_message(pop_x, pop_y, pop_w, pop_h, msg ? msg : "[PERINGATAN] Input tidak valid.");
+    return 0;
+}
 static int ui_require_not_blank(const char *value, int pop_x, int pop_y, int pop_w, int pop_h, const char *field_label) {
     if (value && !is_blank(value)) {
         ui_form_message_clear(pop_x, pop_y, pop_w, pop_h);
@@ -1726,7 +1780,7 @@ void draw_layout_base(int w, int h, const char* section_title) {
 
     for (int y = 0; y <= h - 2; y++) {
         int is_hline = (y == 0 || y == header_h || y == h - 2);
-        memset(line, is_hline ? '=' : ' ', (size_t)w); 
+        memset(line, is_hline ? '=' : ' ', (size_t)w);
         /* Jika horizontal line, gunakan joint '+' pada titik perpotongan supaya tidak terlihat putus */
         char vb = is_hline ? '+' : '|';
        /* outer border */
@@ -1785,7 +1839,7 @@ void draw_layout_base(int w, int h, const char* section_title) {
         print_clipped(sb_left, 3, sb_w, "Sistem Manajemen Kereta");
 
         char buf[128];
-        snprintf(buf, sizeof(buf), "Pengguna : %s", me ? me->username : "-");
+        snprintf(buf, sizeof(buf), "Akun : %s", me ? (me->email[0] ? me->email : "-") : "-");
         print_clipped(sb_left, 5, sb_w, buf);
         snprintf(buf, sizeof(buf), "Peran : %s", me ? role_to_label(me->role) : "-");
         print_clipped(sb_left, 6, sb_w, buf);
@@ -1926,8 +1980,8 @@ static int ui_printf_clamped(const char *fmt, ...) {
     int max_w = right_limit - x + 1;
     if (max_w <= 0) return 0;
 
-    /* Hindari loncat baris: stop di 
- / 
+    /* Hindari loncat baris: stop di
+ /
  */
     int len = 0;
     while (buf[len] && buf[len] != '\n' && buf[len] != '\r' && len < max_w) {
@@ -2100,6 +2154,7 @@ static void ui_redraw_base_simple(const char *base_title) {
 
 
 
+#if 0 /* Modul Karyawan dihapus dari build + tidak dipanggil dari UI */
 static void karyawan_print_hline(int x, int y,
                                 int w_no, int w_nama, int w_email, int w_jabatan, int w_status) {
     gotoXY(x, y); putchar('+');
@@ -2576,6 +2631,8 @@ void view_karyawan() {
 }
 
 
+#endif /* 0 */
+
 /* ================== CRUD AKUN (SUPERADMIN) ================== */
 
 /* Table style seperti screenshot:
@@ -2585,10 +2642,11 @@ void view_karyawan() {
    - [A] tambah, [E] edit, [X] hapus, [ESC] kembali
 */
 
-static void akun_print_hline(int x, int y, int w_no, int w_user, int w_role, int w_status) {
+static void akun_print_hline(int x, int y, int w_no, int w_email, int w_nama, int w_role, int w_status) {
     gotoXY(x, y); putchar('+');
     for (int i = 0; i < w_no + 2; i++) putchar('-'); putchar('+');
-    for (int i = 0; i < w_user + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_email + 2; i++) putchar('-'); putchar('+');
+    for (int i = 0; i < w_nama + 2; i++) putchar('-'); putchar('+');
     for (int i = 0; i < w_role + 2; i++) putchar('-'); putchar('+');
     for (int i = 0; i < w_status + 2; i++) putchar('-'); putchar('+');
 }
@@ -2598,7 +2656,7 @@ static void akun_popup_detail(int split_x, int content_w, const Account *a) {
     (void)content_w;
 
     /* Layout detail dibuat rapat dan konsisten dengan "Rincian Jadwal". */
-    int pop_h = 10;
+    int pop_h = 13;
     int pop_x, pop_y, pop_w;
     popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
 
@@ -2606,9 +2664,11 @@ static void akun_popup_detail(int split_x, int content_w, const Account *a) {
 
     int x = pop_x + 3;
     int y = pop_y + 1;
-    const int L = 12;
+    const int L = 14;
 
-    gotoXY(x, y++); printf("%-*s : %s", L, "Pengguna", a->username);
+    gotoXY(x, y++); printf("%-*s : %s", L, "Email", a->email);
+    gotoXY(x, y++); printf("%-*s : %s", L, "Nama", a->nama);
+    gotoXY(x, y++); printf("%-*s : %s", L, "ID Karyawan", a->id_karyawan);
     gotoXY(x, y++); printf("%-*s : %s", L, "Peran", role_to_label(a->role));
     gotoXY(x, y++); printf("%-*s : %s", L, "Status", a->active ? "Aktif" : "Nonaktif");
     gotoXY(x, y++); printf("%-*s : %s", L, "Sandi", "********");
@@ -2619,7 +2679,7 @@ static void akun_popup_detail(int split_x, int content_w, const Account *a) {
 
 static void akun_popup_add(int split_x, int content_w) {
     (void)content_w;
-    int pop_h = 18;
+    int pop_h = 22;
     int pop_x, pop_y, pop_w;
     popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
 
@@ -2632,27 +2692,37 @@ static void akun_popup_add(int split_x, int content_w) {
     int MAX_VIS = INPUT_W;
     if (MAX_VIS > 63) MAX_VIS = 63;
 
-    char username[64], password[64], rolebuf[8];
+    char email[64], nama[64], password[64], rolebuf[8];
 
-    int x_user, y_user, x_pass, y_pass, x_role, y_role;
-    form_row_draw(pop_x, pop_y, 2, LABEL_W, INPUT_W, "Pengguna", &x_user, &y_user);
-    form_row_draw(pop_x, pop_y, 4, LABEL_W, INPUT_W, "Sandi", &x_pass, &y_pass);
-    form_row_draw(pop_x, pop_y, 6, LABEL_W, INPUT_W, "Peran", &x_role, &y_role);
+    int x_email, y_email, x_nama, y_nama, x_pass, y_pass, x_role, y_role;
+    form_row_draw(pop_x, pop_y, 2, LABEL_W, INPUT_W, "Email", &x_email, &y_email);
+    form_row_draw(pop_x, pop_y, 4, LABEL_W, INPUT_W, "Nama", &x_nama, &y_nama);
+    form_row_draw(pop_x, pop_y, 6, LABEL_W, INPUT_W, "Sandi", &x_pass, &y_pass);
+    form_row_draw(pop_x, pop_y, 8, LABEL_W, INPUT_W, "Peran", &x_role, &y_role);
 
 
     const char *helpers[] = {
         "Peran: 1=Data, 2=Transaksi, 3=Manager",
-        "Pengguna tanpa spasi. Sandi: TAB show/hide"
+        "Login hanya domain @kai.id. Email tanpa @ akan dianggap @kai.id",
+        "Sandi: TAB show/hide"
     };
-    ui_draw_helpers_block(pop_x, pop_y, pop_w, pop_h, "Tips:", helpers, 2);
+    ui_draw_helpers_block(pop_x, pop_y, pop_w, pop_h, "Tips:", helpers, 3);
 
 
 
     while (1) {
-        gotoXY(x_user, y_user);
-        input_option_text_filtered(username, (int)sizeof(username), MAX_VIS, "0123456789");
-        if (username[0] == 27) return;
-        if (!ui_require_not_blank(username, pop_x, pop_y, pop_w, pop_h, "Pengguna")) continue;
+        gotoXY(x_email, y_email);
+        input_email_filtered(email, (int)sizeof(email), MAX_VIS);
+        if (email[0] == 27) return;
+        if (!ui_require_not_blank(email, pop_x, pop_y, pop_w, pop_h, "Email")) continue;
+        break;
+    }
+
+    while (1) {
+        gotoXY(x_nama, y_nama);
+        input_person_name_filtered(nama, (int)sizeof(nama), MAX_VIS);
+        if (nama[0] == 27) return;
+        if (!ui_require_not_blank(nama, pop_x, pop_y, pop_w, pop_h, "Nama")) continue;
         break;
     }
 
@@ -2694,30 +2764,33 @@ static void akun_popup_add(int split_x, int content_w) {
         return;
     }
 
-    int ok = akun_create(username, password, role);
+    int ok = akun_create(email, nama, password, role);
 
     gotoXY(pop_x + 3, pop_y + 12);
     if (ok) printf("Berhasil menambah akun. Tekan tombol apa saja...");
-    else    printf("Gagal menambah akun (duplikat / input tidak valid). Tekan tombol apa saja...");
+    else    printf("Gagal menambah akun (duplikat / input tidak valid / domain bukan kai.id). Tekan tombol apa saja...");
 
     _getch();
 }
 
 static void akun_popup_edit(int split_x, int content_w, int idx) {
     (void)content_w;
-    int pop_h = 22;
+    int pop_h = 26;
     int pop_x, pop_y, pop_w;
     popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
 
     draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Edit Akun");
     ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
 
-    int is_admin = (strcmp(g_accounts[idx].username, "admin") == 0);
+    int is_admin = (strcmp(g_accounts[idx].email, "admin@kai.id") == 0);
 
     /* Ringkas info akun saat ini */
     {
-        char buf[200];
-        snprintf(buf, sizeof(buf), "Pengguna: %s    |    Peran: %s", g_accounts[idx].username, role_to_label(g_accounts[idx].role));
+        char buf[240];
+        snprintf(buf, sizeof(buf), "Email: %s  |  Nama: %s  |  Peran: %s",
+                 g_accounts[idx].email,
+                 g_accounts[idx].nama,
+                 role_to_label(g_accounts[idx].role));
         print_clipped(pop_x + 3, pop_y + 2, pop_w - 6, buf);
     }
 
@@ -2727,17 +2800,21 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     int MAX_VIS = INPUT_W;
     if (MAX_VIS > 63) MAX_VIS = 63;
 
-    char new_user[64] = "";
-    char new_pass[64] = "";
-    char rolebuf[8]   = "";
+    char new_email[64] = "";
+    char new_nama[64]  = "";
+    char new_pass[64]  = "";
+    char rolebuf[8]    = "";
 
-    int x_user = 0, y_user = 0, x_pass = 0, y_pass = 0, x_role = 0, y_role = 0;
+    int x_email = 0, y_email = 0, x_nama = 0, y_nama = 0, x_pass = 0, y_pass = 0, x_role = 0, y_role = 0;
     int row = 5;
 
     if (!is_admin) {
-        form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Pengguna Baru", &x_user, &y_user);
+        form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Email Baru", &x_email, &y_email);
         row += 2;
-    } else {        row += 2;
+        form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Nama Baru", &x_nama, &y_nama);
+        row += 2;
+    } else {
+        row += 4;
     }
 
     form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Sandi Baru", &x_pass, &y_pass);
@@ -2745,7 +2822,8 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
 
     if (!is_admin) {
         form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Peran Baru", &x_role, &y_role);
-        row += 2;    }
+        row += 2;
+    }
 
 
 
@@ -2756,6 +2834,7 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
             helpers[hn++] = "Akun admin hanya bisa ganti password";
         } else {
             helpers[hn++] = "Peran: 1=Data, 2=Transaksi, 3=Manager";
+            helpers[hn++] = "Login hanya domain @kai.id (email tanpa @ dianggap @kai.id)";
             helpers[hn++] = "Kosongkan field jika tidak diganti";
         }
         ui_draw_helpers_block(pop_x, pop_y, pop_w, pop_h, "Tips:", helpers, hn);
@@ -2763,9 +2842,13 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
 
     /* INPUT */
     if (!is_admin) {
-        gotoXY(x_user, y_user);
-        input_option_text_filtered(new_user, (int)sizeof(new_user), MAX_VIS, "0123456789");
-        if (new_user[0] == 27) return;
+        gotoXY(x_email, y_email);
+        input_email_filtered(new_email, (int)sizeof(new_email), MAX_VIS);
+        if (new_email[0] == 27) return;
+
+        gotoXY(x_nama, y_nama);
+        input_person_name_filtered(new_nama, (int)sizeof(new_nama), MAX_VIS);
+        if (new_nama[0] == 27) return;
     }
 
     gotoXY(x_pass, y_pass);
@@ -2785,8 +2868,13 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     int any_change = 0;
     int ok_all = 1;
 
-    if (!is_admin && !is_blank(new_user)) {
-        if (!akun_update_username(idx, new_user)) ok_all = 0;
+    if (!is_admin && !is_blank(new_email)) {
+        if (!akun_update_email(idx, new_email)) ok_all = 0;
+        else any_change = 1;
+    }
+
+    if (!is_admin && !is_blank(new_nama)) {
+        if (!akun_update_nama(idx, new_nama)) ok_all = 0;
         else any_change = 1;
     }
 
@@ -2829,7 +2917,7 @@ static void akun_popup_delete(int split_x, int content_w, int idx) {
     draw_popup_box(pop_x, pop_y, pop_w, pop_h, "Hapus Akun");
     ui_actions_confirm_cancel(pop_x, pop_y, pop_w, pop_h);
 
-    if (strcmp(g_accounts[idx].username, "admin") == 0) {
+    if (strcmp(g_accounts[idx].email, "admin@kai.id") == 0) {
         Beep(500, 200);
         gotoXY(pop_x + 3, pop_y + 3);
         print_padded(pop_x + 3, pop_y + 3, pop_w - 6, "Akun admin tidak bisa dihapus. Tekan tombol apa saja...");
@@ -2839,7 +2927,7 @@ static void akun_popup_delete(int split_x, int content_w, int idx) {
 
     {
         char buf[220];
-        snprintf(buf, sizeof(buf), "Hapus akun: %s (%s)?", g_accounts[idx].username, role_to_label(g_accounts[idx].role));
+        snprintf(buf, sizeof(buf), "Hapus akun: %s (%s)?", g_accounts[idx].email, role_to_label(g_accounts[idx].role));
         print_clipped(pop_x + 3, pop_y + 3, pop_w - 6, buf);
     }
 
@@ -2865,7 +2953,8 @@ static void view_akun() {
     int selected = 0;
 
     int W_NO = 3;
-    int W_USER = 18;
+    int W_EMAIL = 24;
+    int W_NAMA = 18;
     int W_ROLE = 18;
     int W_STATUS = 10;
 
@@ -2877,11 +2966,11 @@ static void view_akun() {
         int content_w = w - split_x;
         int content_left, content_right, usable_w;
         layout_content_bounds(w, split_x, &content_left, &content_right, &usable_w);
-        W_NO = 3; W_USER = 24; W_ROLE = 18; W_STATUS = 10;
-        int col_w[] = { W_NO, W_USER, W_ROLE, W_STATUS };
-        const int min_w[] = { 3, 10, 10, 7 };
-        fit_columns(col_w, min_w, 4, usable_w);
-        W_NO = col_w[0]; W_USER = col_w[1]; W_ROLE = col_w[2]; W_STATUS = col_w[3];
+        W_NO = 3; W_EMAIL = 26; W_NAMA = 22; W_ROLE = 14; W_STATUS = 10;
+        int col_w[] = { W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS };
+        const int min_w[] = { 3, 12, 8, 10, 7 };
+        fit_columns(col_w, min_w, 5, usable_w);
+        W_NO = col_w[0]; W_EMAIL = col_w[1]; W_NAMA = col_w[2]; W_ROLE = col_w[3]; W_STATUS = col_w[4];
 
 
         int active_idx[MAX_RECORDS];
@@ -2905,15 +2994,16 @@ static void view_akun() {
         cls();
         draw_layout_base(w, h, "Kelola Akun");
 
-        int table_w = table_total_width(col_w, 4);
+        int table_w = table_total_width(col_w, 5);
         int table_x = content_left;
 
         int table_y = 10;
 
-        akun_print_hline(table_x, table_y, W_NO, W_USER, W_ROLE, W_STATUS);
+        akun_print_hline(table_x, table_y, W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS);
         gotoXY(table_x, table_y + 1);
-        printf("| %-*s | %-*s | %-*s | %-*s |", W_NO, "No", W_USER, "Pengguna", W_ROLE, "Peran", W_STATUS, "Status");
-        akun_print_hline(table_x, table_y + 2, W_NO, W_USER, W_ROLE, W_STATUS);
+        printf("| %-*s | %-*s | %-*s | %-*s | %-*s |",
+               W_NO, "No", W_EMAIL, "Email", W_NAMA, "Nama", W_ROLE, "Peran", W_STATUS, "Status");
+        akun_print_hline(table_x, table_y + 2, W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS);
 
         for (int r = 0; r < ROWS_PER_PAGE; r++) {
             int y = table_y + 3 + r;
@@ -2928,24 +3018,31 @@ static void view_akun() {
                 const char *status = g_accounts[idx].active ? "Aktif" : "Nonaktif";
 
                 gotoXY(table_x, y);
-                printf("| %*d | %-*s | %-*s | %-*s |",
+                printf("| %*d | %-*.*s | %-*.*s | %-*s | %-*s |",
                        W_NO, n + 1,
-                       W_USER, g_accounts[idx].username,
+                       W_EMAIL, W_EMAIL, g_accounts[idx].email,
+                       W_NAMA, W_NAMA, g_accounts[idx].nama,
                        W_ROLE, role_to_label(g_accounts[idx].role),
                        W_STATUS, status);
             } else {
-                table_print_blank_row(table_x, y, col_w, 4);
+                table_print_blank_row(table_x, y, col_w, 5);
             }
 
             set_highlight(0);
         }
 
-        akun_print_hline(table_x, table_y + 3 + ROWS_PER_PAGE, W_NO, W_USER, W_ROLE, W_STATUS);
+        akun_print_hline(table_x, table_y + 3 + ROWS_PER_PAGE, W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS);
 
         int footer_y = table_y + 3 + ROWS_PER_PAGE + 2;
 
+        int aktif = 0, nonaktif = 0;
+        for (int i = 0; i < total; i++) {
+            if (g_accounts[active_idx[i]].active) aktif++;
+            else nonaktif++;
+        }
         print_padded(table_x, footer_y, table_w,
-                     "Data Aktif: %d   Halaman: %d/%d", total, page + 1, total_pages);
+                     "Data: %d   Aktif: %d   Nonaktif: %d   Halaman: %d/%d",
+                     total, aktif, nonaktif, page + 1, total_pages);
         print_padded(table_x, footer_y + 1, table_w,
                      "Navigasi: [ATAS/BAWAH] Pilih  [KIRI/KANAN] Halaman  [ENTER] Rincian");
         print_padded(table_x, footer_y + 2, table_w,
@@ -3118,12 +3215,17 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
     gotoXY(label_x, pop_y + 6);  printf("%-*s: ", LABEL_W, "No. Telp");
     gotoXY(label_x, pop_y + 8);  printf("%-*s: ", LABEL_W, "Tanggal Lahir (DD-MM-YYYY)");
     gotoXY(label_x, pop_y + 10); printf("%-*s: ", LABEL_W, "Jenis Kelamin [L/P]");
+    gotoXY(label_x, pop_y + 11); printf("%-*s  %s", LABEL_W, "", "Laki laki (L) / Perempuan (P)");
 
     while (1) {
         gotoXY(field_x, pop_y + 2);
         input_person_name_filtered(nama, (int)sizeof(nama), 63);
         if (nama[0] == 27) return;
         if (!ui_require_not_blank(nama, pop_x, pop_y, pop_w, pop_h, "Nama")) continue;
+        if (!ui_require_valid(looks_like_person_name(nama), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Nama tidak valid (hanya huruf & spasi, tanpa angka/simbol).")) {
+            continue;
+        }
         break;
     }
 
@@ -3132,22 +3234,35 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
         input_email_filtered(email, (int)sizeof(email), 63);
         if (email[0] == 27) return;
         if (!ui_require_not_blank(email, pop_x, pop_y, pop_w, pop_h, "Surel")) continue;
+        if (!ui_require_valid(looks_like_email(email), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Surel tidak valid (contoh: nama@domain.com).")) {
+            continue;
+        }
         break;
     }
 
-    while (1) {
-        gotoXY(field_x, pop_y + 6);
-        input_digits(telp, 23);
-        if (telp[0] == 27) return;
-        if (!ui_require_not_blank(telp, pop_x, pop_y, pop_w, pop_h, "No. Telp")) continue;
-        break;
+    
+	while (1) {
+	    gotoXY(field_x, pop_y + 6);
+	    /* input_digits() menggambar box sebesar (max_len-1). Untuk 12 digit, pass 13. */
+	    input_digits(telp, 13);
+    if (telp[0] == 27) return;
+    if (!ui_require_not_blank(telp, pop_x, pop_y, pop_w, pop_h, "No. Telp")) continue;
+	    if (!ui_require_valid(looks_like_phone_08_len12(telp), pop_x, pop_y, pop_w, pop_h,
+	                          "[PERINGATAN] No. Telp harus 12 digit dan diawali 08 (contoh: 081234567890).")) {
+        continue;
     }
-
-    while (1) {
+    break;
+}
+while (1) {
         gotoXY(field_x, pop_y + 8);
         input_date_ddmmyyyy_filtered(lahir, (int)sizeof(lahir));
         if (lahir[0] == 27) return;
         if (!ui_require_not_blank(lahir, pop_x, pop_y, pop_w, pop_h, "Tanggal Lahir")) continue;
+        if (!ui_require_valid(looks_like_date_ddmmyyyy(lahir), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Tanggal lahir tidak valid. Gunakan DD-MM-YYYY (contoh: 01-01-2000).")) {
+            continue;
+        }
         break;
     }
 
@@ -3156,51 +3271,18 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
         input_gender_lp_filtered(jk, (int)sizeof(jk));
         if (jk[0] == 27) return;
         if (!ui_require_not_blank(jk, pop_x, pop_y, pop_w, pop_h, "Jenis Kelamin")) continue;
+        if (!ui_require_valid(((jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') && jk[1] == '\0'),
+                              pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Jenis kelamin harus L atau P.")) {
+            continue;
+        }
         break;
     }
 
-    if (0) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 14);
-        print_padded(pop_x + 3, pop_y + 14, pop_w - 6, "Semua field wajib diisi. Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
-    if (!looks_like_person_name(nama)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 14);
-        print_padded(pop_x + 3, pop_y + 14, pop_w - 6, "Nama tidak valid (hanya huruf & spasi, tanpa angka/simbol). Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
-    if (!looks_like_email(email)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 14);
-        print_padded(pop_x + 3, pop_y + 14, pop_w - 6, "Surel tidak valid (contoh: nama@domain.com). Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
-    if (!looks_like_date_ddmmyyyy(lahir)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 14);
-        print_padded(pop_x + 3, pop_y + 14, pop_w - 6, "Tanggal lahir tidak valid. Gunakan DD-MM-YYYY (contoh: 01-01-2000). Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
-    if (!(jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') || jk[1] != '\0') {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 14);
-        print_padded(pop_x + 3, pop_y + 14, pop_w - 6, "Jenis kelamin harus L atau P. Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
     char id_new[16];
-    penumpang_create_auto(id_new, sizeof(id_new), nama, email, telp, lahir, (jk[0] == 'l') ? "L" : (jk[0] == 'p') ? "P" : jk);
+    penumpang_create_auto(id_new, sizeof(id_new), nama, email, telp, lahir,
+                        (jk[0] == 'L' || jk[0] == 'l') ? "Laki laki" :
+                        (jk[0] == 'P' || jk[0] == 'p') ? "Perempuan" : jk);
 
     gotoXY(pop_x + 3, pop_y + 14);
     printf("Berhasil tambah. ID: %s. Tekan tombol apa saja...", id_new);
@@ -3227,12 +3309,75 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
     gotoXY(label_x, pop_y + 8);  printf("%-*s: ", LABEL_W, "No. Telp");
     gotoXY(label_x, pop_y + 10); printf("%-*s: ", LABEL_W, "Tanggal Lahir (DD-MM-YYYY)");
     gotoXY(label_x, pop_y + 12); printf("%-*s: ", LABEL_W, "Jenis Kelamin [L/P]");
+    gotoXY(label_x, pop_y + 13); printf("%-*s  %s", LABEL_W, "", "Laki laki (L) / Perempuan (P)");
 
-    gotoXY(field_x, pop_y + 4);  input_person_name_filtered(nama, (int)sizeof(nama), 63);         if (nama[0] == 27) return;
-    gotoXY(field_x, pop_y + 6);  input_email_filtered(email, (int)sizeof(email), 63);             if (email[0] == 27) return;
-    gotoXY(field_x, pop_y + 8);  input_digits(telp, 23);                                          if (telp[0] == 27) return;
-    gotoXY(field_x, pop_y + 10); input_date_ddmmyyyy_filtered(lahir, (int)sizeof(lahir));         if (lahir[0] == 27) return;
-    gotoXY(field_x, pop_y + 12); input_gender_lp_filtered(jk, (int)sizeof(jk));                   if (jk[0] == 27) return;
+    /* Nama (opsional) */
+    while (1) {
+        gotoXY(field_x, pop_y + 4);
+        input_person_name_filtered(nama, (int)sizeof(nama), 63);
+        if (nama[0] == 27) return;
+        if (is_blank(nama)) break;
+        if (!ui_require_valid(looks_like_person_name(nama), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Nama tidak valid (hanya huruf & spasi, tanpa angka/simbol).")) {
+            continue;
+        }
+        break;
+    }
+
+    /* Surel (opsional) */
+    while (1) {
+        gotoXY(field_x, pop_y + 6);
+        input_email_filtered(email, (int)sizeof(email), 63);
+        if (email[0] == 27) return;
+        if (is_blank(email)) break;
+        if (!ui_require_valid(looks_like_email(email), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Surel tidak valid (contoh: nama@domain.com).")) {
+            continue;
+        }
+        break;
+    }
+
+    
+/* No. Telp (opsional) */
+    while (1) {
+        gotoXY(field_x, pop_y + 8);
+        /* input_digits() menggambar box sebesar (max_len-1). Untuk 12 digit, pass 13. */
+        input_digits(telp, 13);
+        if (telp[0] == 27) return;
+        if (is_blank(telp)) break;
+        if (!ui_require_valid(looks_like_phone_08_len12(telp), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] No. Telp harus 12 digit dan diawali 08 (contoh: 081234567890).")) {
+            continue;
+        }
+        break;
+    }
+
+/* Tanggal Lahir (opsional) */
+    while (1) {
+        gotoXY(field_x, pop_y + 10);
+        input_date_ddmmyyyy_filtered(lahir, (int)sizeof(lahir));
+        if (lahir[0] == 27) return;
+        if (is_blank(lahir)) break;
+        if (!ui_require_valid(looks_like_date_ddmmyyyy(lahir), pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Tanggal lahir tidak valid. Gunakan DD-MM-YYYY (contoh: 01-01-2000).")) {
+            continue;
+        }
+        break;
+    }
+
+    /* Jenis Kelamin (opsional) */
+    while (1) {
+        gotoXY(field_x, pop_y + 12);
+        input_gender_lp_filtered(jk, (int)sizeof(jk));
+        if (jk[0] == 27) return;
+        if (is_blank(jk)) break;
+        if (!ui_require_valid(((jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') && jk[1] == '\0'),
+                              pop_x, pop_y, pop_w, pop_h,
+                              "[PERINGATAN] Jenis kelamin harus L atau P.")) {
+            continue;
+        }
+        break;
+    }
 
     const char *new_nama = is_blank(nama) ? g_penumpang[idx].nama : nama;
     const char *new_email = is_blank(email) ? g_penumpang[idx].email : email;
@@ -3242,45 +3387,23 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
     char jk_final[16];
     snprintf(jk_final, sizeof(jk_final), "%s", g_penumpang[idx].jenis_kelamin);
     if (!is_blank(jk)) {
-        if (!(jk[0] == 'L' || jk[0] == 'l' || jk[0] == 'P' || jk[0] == 'p') || jk[1] != '\0') {
-            Beep(500, 200);
-            gotoXY(pop_x + 3, pop_y + 16);
-            print_padded(pop_x + 3, pop_y + 16, pop_w - 6, "Jenis kelamin harus L atau P. Tekan tombol apa saja...");
-            _getch();
-            return;
-        }
-        snprintf(jk_final, sizeof(jk_final), "%c", (jk[0] == 'l') ? 'L' : (jk[0] == 'p') ? 'P' : jk[0]);
+        snprintf(jk_final, sizeof(jk_final), "%s",
+                 (jk[0] == 'L' || jk[0] == 'l') ? "Laki laki" :
+                 (jk[0] == 'P' || jk[0] == 'p') ? "Perempuan" : jk);
     }
 
-    if (!looks_like_email(new_email)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 16);
-        print_padded(pop_x + 3, pop_y + 16, pop_w - 6, "Surel tidak valid (contoh: nama@domain.com). Tekan tombol apa saja...");
-        _getch();
+    /* Validasi format dilakukan saat input untuk field yang diubah.
+       Saat kosong (tetap), kita tidak memaksa validasi ulang data lama agar edit tetap bisa dilakukan. */
+    if (!is_blank(nama) && !looks_like_person_name(new_nama)) {
+        ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Nama tidak valid (hanya huruf & spasi, tanpa angka/simbol).");
         return;
     }
-
-    if (!looks_like_person_name(new_nama)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 16);
-        print_padded(pop_x + 3, pop_y + 16, pop_w - 6, "Nama tidak valid (hanya huruf & spasi, tanpa angka/simbol). Tekan tombol apa saja...");
-        _getch();
+    if (!is_blank(lahir) && !looks_like_date_ddmmyyyy(new_lahir)) {
+        ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Tanggal lahir tidak valid. Gunakan DD-MM-YYYY (contoh: 01-01-2000).");
         return;
     }
-
-    if (!looks_like_date_ddmmyyyy(new_lahir)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 16);
-        print_padded(pop_x + 3, pop_y + 16, pop_w - 6, "Tanggal lahir tidak valid. Gunakan DD-MM-YYYY (contoh: 01-01-2000). Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
-
-    if (!is_digits_only(new_telp)) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 16);
-        print_padded(pop_x + 3, pop_y + 16, pop_w - 6, "No. telp harus angka saja. Tekan tombol apa saja...");
-        _getch();
+    if (!is_blank(telp) && !is_digits_only(new_telp)) {
+        ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] No. telp harus angka saja.");
         return;
     }
 
@@ -3343,9 +3466,9 @@ static void view_penumpang() {
 
         /* Responsive sizing (full kolom, tapi tetap muat di terminal fullscreen) */
         /* reset ukuran kolom */
-        W_NO = 3; W_NAMA = 22; W_EMAIL = 22; W_TELP = 14; W_LAHIR = 10; W_JK = 6; W_STATUS = 10;
+        W_NO = 3; W_NAMA = 22; W_EMAIL = 22; W_TELP = 14; W_LAHIR = 10; W_JK = 14; W_STATUS = 10;
         int col_w[] = { W_NO, W_NAMA, W_EMAIL, W_TELP, W_LAHIR, W_JK, W_STATUS };
-        const int min_w[] = { 3, 6, 10, 10, 8, 4, 7 };
+        const int min_w[] = { 3, 6, 10, 10, 8, 10, 7 };
         fit_columns(col_w, min_w, 7, usable_w);
         W_NO = col_w[0]; W_NAMA = col_w[1]; W_EMAIL = col_w[2]; W_TELP = col_w[3]; W_LAHIR = col_w[4]; W_JK = col_w[5]; W_STATUS = col_w[6];
 
@@ -3391,7 +3514,7 @@ static void view_penumpang() {
                W_EMAIL, "Surel",
                W_TELP, "Telp",
                W_LAHIR, "Lahir",
-               W_JK, "JK",
+               W_JK, "Jenis Kelamin",
                W_STATUS, "Status");
         penumpang_print_hline(table_x, table_y + 2, W_NO, W_NAMA, W_EMAIL, W_TELP, W_LAHIR, W_JK, W_STATUS);
 
@@ -4019,6 +4142,23 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
             printf("Nama tidak valid. Hanya huruf dan spasi (tanpa angka/simbol).%*s", 25, "");
             continue;
         }
+
+        /* Validasi Duplikat */
+        int duplicate = 0;
+        for (int i = 0; i < g_keretaCount; i++) {
+            if (g_kereta[i].active && _stricmp(g_kereta[i].nama, nama) == 0) {
+                duplicate = 1;
+                break;
+            }
+        }
+
+        if (duplicate) {
+            Beep(700, 80);
+            gotoXY(pop_x + 3, pop_y + 13);
+            printf("Nama kereta sudah digunakan. Gunakan nama lain.%*s", 20, "");
+            continue;
+        }
+
         break;
     }
 
@@ -4050,6 +4190,13 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
         input_digits(kap_buf, 4);   /* 3 digit */
         if (kap_buf[0] == 27) return;
         if (!ui_require_not_blank(kap_buf, pop_x, pop_y, pop_w, pop_h, "Kapasitas")) continue;
+        {
+            int kap_tmp = atoi(kap_buf);
+            if (!ui_require_valid(kap_tmp > 0, pop_x, pop_y, pop_w, pop_h,
+                                  "[PERINGATAN] Kapasitas harus > 0.")) {
+                continue;
+            }
+        }
         break;
     }
 
@@ -4058,26 +4205,17 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
         input_digits(gerb_buf, 3);  /* 2 digit */
         if (gerb_buf[0] == 27) return;
         if (!ui_require_not_blank(gerb_buf, pop_x, pop_y, pop_w, pop_h, "Jumlah Gerbong")) continue;
+        {
+            int gerb_tmp = atoi(gerb_buf);
+            if (!ui_require_valid(gerb_tmp > 0 && gerb_tmp <= 12, pop_x, pop_y, pop_w, pop_h,
+                                  "[PERINGATAN] Jumlah gerbong harus 1-12.")) {
+                continue;
+            }
+        }
         break;
     }
-
-    if (0) {
-        Beep(700, 80);
-        gotoXY(pop_x + 3, pop_y + 13);
-        printf("Kapasitas dan gerbong wajib diisi.%*s", 40, "");
-        _getch();
-        return;
-    }
-
     int kap = atoi(kap_buf);
     int gerb = atoi(gerb_buf);
-    if (kap <= 0 || gerb <= 0) {
-        Beep(700, 80);
-        gotoXY(pop_x + 3, pop_y + 13);
-        printf("Kapasitas & gerbong harus > 0.%*s", 48, "");
-        _getch();
-        return;
-    }
 
     /* Status (digit only: 1/2) - WAJIB pilih */
     while (1) {
@@ -4140,9 +4278,36 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
 
     /* Batasi digit agar konsisten dengan tampilan dan validasi:
        Kapasitas max 3 digit (1..999), Gerbong max 2 digit (1..99)
+       Edit: boleh dikosongkan untuk tetap, namun jika diisi harus > 0.
     */
-    gotoXY(field_x, pop_y + 8);  input_digits(kap_buf, 4);  if (kap_buf[0] == 27) return; /* 3 digit */
-    gotoXY(field_x, pop_y + 10); input_digits(gerb_buf, 3); if (gerb_buf[0] == 27) return; /* 2 digit */
+    while (1) {
+        gotoXY(field_x, pop_y + 8);
+        input_digits(kap_buf, 4);  /* 3 digit */
+        if (kap_buf[0] == 27) return;
+        if (is_blank(kap_buf)) break;
+        {
+            int kap_tmp = atoi(kap_buf);
+            if (!ui_require_valid(kap_tmp > 0, pop_x, pop_y, pop_w, pop_h,
+                                  "[PERINGATAN] Kapasitas harus > 0.")) {
+                continue;
+            }
+        }
+        break;
+    }
+    while (1) {
+        gotoXY(field_x, pop_y + 10);
+        input_digits(gerb_buf, 3); /* 2 digit */
+        if (gerb_buf[0] == 27) return;
+        if (is_blank(gerb_buf)) break;
+        {
+            int gerb_tmp = atoi(gerb_buf);
+            if (!ui_require_valid(gerb_tmp > 0 && gerb_tmp <= 12, pop_x, pop_y, pop_w, pop_h,
+                                  "[PERINGATAN] Jumlah gerbong harus 1-12.")) {
+                continue;
+            }
+        }
+        break;
+    }
 
     gotoXY(field_x, pop_y + 12); printf("%-6s", "");
     /* Edit: boleh dikosongkan (ENTER) untuk tetap */
@@ -4159,6 +4324,25 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
             _getch();
             return;
         }
+
+        /* Cek Duplikat (exclude diri sendiri) */
+        int duplicate = 0;
+        for (int i = 0; i < g_keretaCount; i++) {
+            if (i == idx) continue; /* skip diri sendiri */
+            if (g_kereta[i].active && _stricmp(g_kereta[i].nama, nama) == 0) {
+                duplicate = 1;
+                break;
+            }
+        }
+
+        if (duplicate) {
+            Beep(700, 80);
+            gotoXY(pop_x + 3, pop_y + 18);
+            print_padded(pop_x + 3, pop_y + 18, pop_w - 6, "Nama kereta sudah digunakan. Gunakan nama lain. Tekan tombol apa saja...");
+            _getch();
+            return;
+        }
+
         new_nama = nama;
     }
 
@@ -4178,34 +4362,18 @@ ui_actions_save_cancel(pop_x, pop_y, pop_w, pop_h);
     /* Kapasitas */
     int kap = g_kereta[idx].kapasitas;
     if (!is_blank(kap_buf)) {
-        if (!is_digits_only(kap_buf)) {
-            Beep(700, 80);
-            gotoXY(pop_x + 3, pop_y + 18);
-            print_padded(pop_x + 3, pop_y + 18, pop_w - 6, "Kapasitas harus angka. Tekan tombol apa saja...");
-            _getch();
-            return;
-        }
         kap = atoi(kap_buf);
     }
 
     /* Gerbong */
     int gerb = g_kereta[idx].gerbong;
     if (!is_blank(gerb_buf)) {
-        if (!is_digits_only(gerb_buf)) {
-            Beep(700, 80);
-            gotoXY(pop_x + 3, pop_y + 18);
-            print_padded(pop_x + 3, pop_y + 18, pop_w - 6, "Gerbong harus angka. Tekan tombol apa saja...");
-            _getch();
-            return;
-        }
         gerb = atoi(gerb_buf);
     }
 
-    if (kap <= 0 || gerb <= 0) {
-        Beep(700, 80);
-        gotoXY(pop_x + 3, pop_y + 18);
-        print_padded(pop_x + 3, pop_y + 18, pop_w - 6, "Kapasitas & gerbong harus > 0. Tekan tombol apa saja...");
-        _getch();
+    /* Safety net: data lama mungkin corrupt, tapi jangan biarkan simpan nilai <= 0 */
+    if (kap <= 0 || gerb <= 0 || gerb > 12) {
+        ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Kapasitas harus > 0 dan gerbong 1-12.");
         return;
     }
 
@@ -4412,11 +4580,17 @@ static const char* role_to_label(Role role) {
     }
 }
 
-static int auth_find_account_index(const char* username, const char* password) {
-    if (!username || !password) return -1;
+static int auth_find_account_index(const char* user_input, const char* password) {
+    if (!user_input || !password) return -1;
+
+    char email_norm[128];
+    if (!akun_normalize_login_email(user_input, email_norm, (int)sizeof(email_norm))) {
+        return -1; /* domain selain @kai.id -> ditolak */
+    }
+
     for (int i = 0; i < g_accountCount; i++) {
         if (!g_accounts[i].active) continue;
-        if (strcmp(g_accounts[i].username, username) == 0 &&
+        if (strcmp(g_accounts[i].email, email_norm) == 0 &&
             strcmp(g_accounts[i].password, password) == 0) {
             return i;
         }
@@ -5065,7 +5239,7 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
     }
 
     char id_new[20];
-    const char *kry = (account_index >= 0 && account_index < g_accountCount) ? g_accounts[account_index].username : "";
+    const char *kry = (account_index >= 0 && account_index < g_accountCount) ? g_accounts[account_index].id_karyawan : "";
     jadwal_create_auto(id_new, sizeof(id_new), tgl_brkt, id_kereta, asal, tujuan, brg, tiba, harga, kuota, kry);
 
     {
@@ -5474,7 +5648,7 @@ reinput_jadwal:
 
     char id_new[32];
     char err[128];
-    const char *kry = (account_index >= 0 && account_index < g_accountCount) ? g_accounts[account_index].username : "";
+    const char *kry = (account_index >= 0 && account_index < g_accountCount) ? g_accounts[account_index].id_karyawan : "";
 
     int ok = pembayaran_create_auto(id_new, sizeof(id_new),
                                    "",
@@ -6326,7 +6500,7 @@ static void dashboard_main(int account_index) {
         int center_y = h / 2;
 
         char welcome[100];
-        snprintf(welcome, 100, "Selamat Datang, %s!", me->username);
+        snprintf(welcome, 100, "Selamat Datang, %s!", (me->nama[0] ? me->nama : me->email));
         gotoXY(center_x - (int)(strlen(welcome)/2), center_y - 8);
         printf("%s", welcome);
 
@@ -6340,7 +6514,6 @@ static void dashboard_main(int account_index) {
 
         if (me->role == ROLE_SUPERADMIN) {
             menus[menu_count++] = "[1] Kelola Akun Karyawan";
-            menus[menu_count++] = "[2] Kelola Data Karyawan";
             menus[menu_count++] = "[ESC] Keluar Akun / Keluar";
         } else if (me->role == ROLE_DATA) {
             menus[menu_count++] = "[1] Kelola Penumpang";
@@ -6371,9 +6544,7 @@ static void dashboard_main(int account_index) {
 
         /* Aksi berdasarkan role */
         if (me->role == ROLE_SUPERADMIN) {
-            if (ch == '2') {
-                view_karyawan();
-            } else if (ch == '1') {
+            if (ch == '1') {
                 gotoXY(center_x - 20, start_y + (menu_count*2) + 4);
                 view_akun();
             }
@@ -6434,7 +6605,7 @@ void login_screen() {
         SetConsoleCursorInfo(GetStdHandle(STD_OUTPUT_HANDLE), &ci);
 
         /* Login: gunakan input plain (tanpa kotak [ ]) */
-        input_text_login_plain(user, (int)sizeof(user), 0);            // username: tanpa spasi
+        input_text_login_plain(user, (int)sizeof(user), 0);            // email (tanpa spasi)
         if (user[0] == 27) { cls(); exit(0); }
 
         gotoXY(box_x, form_top + 6);
@@ -6460,7 +6631,6 @@ void login_screen() {
 
 void ui_init(void) {
     akun_init();
-    karyawan_init();
     penumpang_init();
     stasiun_init();
     kereta_init();

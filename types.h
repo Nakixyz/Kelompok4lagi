@@ -16,7 +16,11 @@ typedef enum {
 
 /* Master 1: Akun */
 typedef struct {
-    char username[MAX_INPUT];
+    /* Login pakai email (domain: @kai.id) */
+    char email[MAX_INPUT];
+    char nama[MAX_INPUT];
+    /* ID karyawan internal, format: PEG### */
+    char id_karyawan[16];
     char password[MAX_INPUT];
     Role role;
     int active;
