@@ -281,7 +281,7 @@ static void set_highlight(int on) {
 
 
 
-/* Password input: TAB show/hide, spasi ditolak */
+/* Password input: TAB tampil/sembunyi, spasi ditolak */
 void input_password_masked(char *buffer, int max_len, int x, int y, int field_w) {
     int i = 0;
     int visible = 0;
@@ -390,7 +390,7 @@ void input_text(char *buffer, int max_len, int allow_space) {
 
 /* ================== INPUT PLAIN (khusus LOGIN) ==================
 
-/* Password input plain untuk login: TAB show/hide, tanpa kotak [ ] */
+/* Password input plain untuk login: TAB tampil/sembunyi, tanpa kotak [ ] */
 static void input_password_masked_login_plain(char *buffer, int max_len, int x, int y, int field_w) {
     int i = 0;
     int visible = 0;
@@ -772,7 +772,7 @@ static void input_email_filtered(char *buffer, int buffer_sz, int max_chars) {
         }
 
         if (is_email_char_ui(ch)) {
-            /* Email tidak menerima huruf besar: tampilkan & simpan sebagai lowercase */
+            /* Surel tidak menerima huruf besar: tampilkan & simpan sebagai lowercase */
             if (isupper((unsigned char)ch)) ch = tolower((unsigned char)ch);
             if (i < max_chars) {
                 buffer[i++] = (char)ch;
@@ -1491,6 +1491,53 @@ static void ui_draw_helpers_block(int x, int y, int w, int h,
     }
 }
 
+
+
+static void ui_draw_helpers_block_below(int x, int y, int w, int h,
+                                        int min_y,
+                                        const char *title,
+                                        const char *const *lines,
+                                        int n) {
+    /* gunakan area inner supaya tidak menimpa border */
+    int ix, iy, iw, ih;
+    ui_box_inner(x, y, w, h, &ix, &iy, &iw, &ih);
+    x = ix; w = iw;
+
+    if (!lines || n <= 0 || w < 24 || h < 8) return;
+
+    int sep_y = y + h - 3;             /* garis actions bar */
+    int max_w = w - 6;                 /* padding kiri/kanan */
+
+    /* default posisi dekat actions bar */
+    int start_y = sep_y - (n + 1) - 1; /* (judul + n baris) + jarak */
+
+    /* jangan sampai naik melewati area judul box */
+    if (start_y < y + 2) start_y = y + 2;
+
+    /* pastikan tidak menimpa area form (di atas min_y) */
+    if (start_y < min_y) start_y = min_y;
+
+    /* kalau tidak cukup ruang, jangan gambar block */
+    if (start_y + 1 + (n - 1) >= sep_y - 1) return;
+
+    /* bersihkan area supaya tidak ada sisa karakter */
+    ui_clear_line(x, start_y, w);
+    for (int i = 0; i < n; i++) ui_clear_line(x, start_y + 1 + i, w);
+
+    /* judul info */
+    if (title && title[0]) {
+        print_clipped(x + 3, start_y, max_w, title);
+    } else {
+        print_clipped(x + 3, start_y, max_w, "Info:");
+    }
+
+    /* isi info */
+    for (int i = 0; i < n; i++) {
+        char out[256];
+        snprintf(out, sizeof(out), "- %s", lines[i] ? lines[i] : "");
+        print_clipped(x + 5, start_y + 1 + i, max_w - 2, out);
+    }
+}
 
 static int is_blank(const char *s) {
     if (!s) return 1;
@@ -2666,7 +2713,7 @@ static void akun_popup_detail(int split_x, int content_w, const Account *a) {
     int y = pop_y + 1;
     const int L = 14;
 
-    gotoXY(x, y++); printf("%-*s : %s", L, "Email", a->email);
+    gotoXY(x, y++); printf("%-*s : %s", L, "Surel", a->email);
     gotoXY(x, y++); printf("%-*s : %s", L, "Nama", a->nama);
     gotoXY(x, y++); printf("%-*s : %s", L, "ID Karyawan", a->id_karyawan);
     gotoXY(x, y++); printf("%-*s : %s", L, "Peran", role_to_label(a->role));
@@ -2695,7 +2742,7 @@ static void akun_popup_add(int split_x, int content_w) {
     char email[64], nama[64], password[64], rolebuf[8];
 
     int x_email, y_email, x_nama, y_nama, x_pass, y_pass, x_role, y_role;
-    form_row_draw(pop_x, pop_y, 2, LABEL_W, INPUT_W, "Email", &x_email, &y_email);
+    form_row_draw(pop_x, pop_y, 2, LABEL_W, INPUT_W, "Surel", &x_email, &y_email);
     form_row_draw(pop_x, pop_y, 4, LABEL_W, INPUT_W, "Nama", &x_nama, &y_nama);
     form_row_draw(pop_x, pop_y, 6, LABEL_W, INPUT_W, "Sandi", &x_pass, &y_pass);
     form_row_draw(pop_x, pop_y, 8, LABEL_W, INPUT_W, "Peran", &x_role, &y_role);
@@ -2703,8 +2750,8 @@ static void akun_popup_add(int split_x, int content_w) {
 
     const char *helpers[] = {
         "Peran: 1=Data, 2=Transaksi, 3=Manager",
-        "Login hanya domain @kai.id. Email tanpa @ akan dianggap @kai.id",
-        "Sandi: TAB show/hide"
+        "Login hanya domain @kai.id. Surel tanpa @ akan dianggap @kai.id",
+        "Sandi: TAB tampil/sembunyi"
     };
     ui_draw_helpers_block(pop_x, pop_y, pop_w, pop_h, "Tips:", helpers, 3);
 
@@ -2714,7 +2761,7 @@ static void akun_popup_add(int split_x, int content_w) {
         gotoXY(x_email, y_email);
         input_email_filtered(email, (int)sizeof(email), MAX_VIS);
         if (email[0] == 27) return;
-        if (!ui_require_not_blank(email, pop_x, pop_y, pop_w, pop_h, "Email")) continue;
+        if (!ui_require_not_blank(email, pop_x, pop_y, pop_w, pop_h, "Surel")) continue;
         break;
     }
 
@@ -2787,7 +2834,7 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     /* Ringkas info akun saat ini */
     {
         char buf[240];
-        snprintf(buf, sizeof(buf), "Email: %s  |  Nama: %s  |  Peran: %s",
+        snprintf(buf, sizeof(buf), "Surel: %s  |  Nama: %s  |  Peran: %s",
                  g_accounts[idx].email,
                  g_accounts[idx].nama,
                  role_to_label(g_accounts[idx].role));
@@ -2809,7 +2856,7 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     int row = 5;
 
     if (!is_admin) {
-        form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Email Baru", &x_email, &y_email);
+        form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Surel Baru", &x_email, &y_email);
         row += 2;
         form_row_draw(pop_x, pop_y, row, LABEL_W, INPUT_W, "Nama Baru", &x_nama, &y_nama);
         row += 2;
@@ -2834,10 +2881,10 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
             helpers[hn++] = "Akun admin hanya bisa ganti password";
         } else {
             helpers[hn++] = "Peran: 1=Data, 2=Transaksi, 3=Manager";
-            helpers[hn++] = "Login hanya domain @kai.id (email tanpa @ dianggap @kai.id)";
+            helpers[hn++] = "Login hanya domain @kai.id (surel tanpa @ dianggap @kai.id)";
             helpers[hn++] = "Kosongkan field jika tidak diganti";
         }
-        ui_draw_helpers_block(pop_x, pop_y, pop_w, pop_h, "Tips:", helpers, hn);
+        ui_draw_helpers_block_below(pop_x, pop_y, pop_w, pop_h, y_role + 2, "Tips:", helpers, hn);
     }
 
     /* INPUT */
@@ -3002,7 +3049,7 @@ static void view_akun() {
         akun_print_hline(table_x, table_y, W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS);
         gotoXY(table_x, table_y + 1);
         printf("| %-*s | %-*s | %-*s | %-*s | %-*s |",
-               W_NO, "No", W_EMAIL, "Email", W_NAMA, "Nama", W_ROLE, "Peran", W_STATUS, "Status");
+               W_NO, "No", W_EMAIL, "Surel", W_NAMA, "Nama", W_ROLE, "Peran", W_STATUS, "Status");
         akun_print_hline(table_x, table_y + 2, W_NO, W_EMAIL, W_NAMA, W_ROLE, W_STATUS);
 
         for (int r = 0; r < ROWS_PER_PAGE; r++) {
