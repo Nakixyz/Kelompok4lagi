@@ -1798,6 +1798,40 @@ static int ui_require_not_blank(const char *value, int pop_x, int pop_y, int pop
     return 0;
 }
 
+/* Redraw input box + value (dipakai saat normalisasi input mengubah isi) */
+static void ui_redraw_input_value(int x, int y, int inner_w, const char *value) {
+    if (inner_w <= 0) return;
+    gotoXY(x, y);
+    ui_draw_input_box_inline(inner_w);
+    /* setelah ui_draw_input_box_inline, cursor sudah berada di dalam box */
+    if (!value) return;
+    int n = (int)strlen(value);
+    if (n > inner_w) n = inner_w;
+    for (int i = 0; i < n; i++) putchar(value[i]);
+}
+
+/* Cek duplikasi surel (case-insensitive via normalisasi @kai.id + lowercase) */
+static int ui_akun_email_exists_norm(const char *email_norm) {
+    if (!email_norm || email_norm[0] == '\0') return 0;
+    for (int i = 0; i < g_accountCount; i++) {
+        char e[128];
+        if (!akun_normalize_login_email(g_accounts[i].email, e, (int)sizeof(e))) continue;
+        if (strcmp(e, email_norm) == 0) return 1;
+    }
+    return 0;
+}
+
+static int ui_akun_email_exists_norm_except(const char *email_norm, int except_idx) {
+    if (!email_norm || email_norm[0] == '\0') return 0;
+    for (int i = 0; i < g_accountCount; i++) {
+        if (i == except_idx) continue;
+        char e[128];
+        if (!akun_normalize_login_email(g_accounts[i].email, e, (int)sizeof(e))) continue;
+        if (strcmp(e, email_norm) == 0) return 1;
+    }
+    return 0;
+}
+
 /*
    Layout base versi "fast":
    - Frame digambar per-baris (lebih cepat, lebih stabil, mengurangi flicker)
@@ -2757,11 +2791,39 @@ static void akun_popup_add(int split_x, int content_w) {
 
 
 
+    /* Pastikan area pesan bersih sejak awal */
+    ui_form_message_clear(pop_x, pop_y, pop_w, pop_h);
+
     while (1) {
         gotoXY(x_email, y_email);
         input_email_filtered(email, (int)sizeof(email), MAX_VIS);
         if (email[0] == 27) return;
         if (!ui_require_not_blank(email, pop_x, pop_y, pop_w, pop_h, "Surel")) continue;
+
+        /* Validasi surel + normalisasi domain @kai.id (langsung, bukan menunggu simpan) */
+        {
+            char norm[128];
+            if (!akun_normalize_login_email(email, norm, (int)sizeof(norm))) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Surel harus menggunakan domain @kai.id.");
+                continue;
+            }
+            if (!looks_like_email(norm)) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Format surel tidak valid (contoh: nama@kai.id).");
+                continue;
+            }
+            if (ui_akun_email_exists_norm(norm)) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Surel sudah terdaftar.");
+                continue;
+            }
+
+            /* Tampilkan hasil normalisasi (lowercase / auto-append domain) */
+            snprintf(email, sizeof(email), "%s", norm);
+            ui_redraw_input_value(x_email, y_email, MAX_VIS, email);
+        }
+
         break;
     }
 
@@ -2788,35 +2850,27 @@ static void akun_popup_add(int split_x, int content_w) {
         input_choice_digits_filtered(rolebuf, (int)sizeof(rolebuf), "123", 0);
         if (rolebuf[0] == 27) return;
         if (!ui_require_not_blank(rolebuf, pop_x, pop_y, pop_w, pop_h, "Peran")) continue;
+        if (!(strcmp(rolebuf, "1") == 0 || strcmp(rolebuf, "2") == 0 || strcmp(rolebuf, "3") == 0)) {
+            ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Peran harus 1-3.");
+            continue;
+        }
         break;
-    }
-
-    if (0) {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 12);
-        print_padded(pop_x + 3, pop_y + 12, pop_w - 6, "Semua field wajib diisi. Tekan tombol apa saja...");
-        _getch();
-        return;
     }
 
     Role role;
     if (strcmp(rolebuf, "1") == 0) role = ROLE_DATA;
     else if (strcmp(rolebuf, "2") == 0) role = ROLE_TRANSAKSI;
-    else if (strcmp(rolebuf, "3") == 0) role = ROLE_MANAGER;
-    else {
-        Beep(500, 200);
-        gotoXY(pop_x + 3, pop_y + 12);
-        print_padded(pop_x + 3, pop_y + 12, pop_w - 6, "Peran tidak valid. Tekan tombol apa saja...");
-        _getch();
-        return;
-    }
+    else /* rolebuf sudah divalidasi 1-3 */ role = ROLE_MANAGER;
 
     int ok = akun_create(email, nama, password, role);
 
-    gotoXY(pop_x + 3, pop_y + 12);
-    if (ok) printf("Berhasil menambah akun. Tekan tombol apa saja...");
-    else    printf("Gagal menambah akun (duplikat / input tidak valid / domain bukan kai.id). Tekan tombol apa saja...");
-
+    if (ok) {
+        ui_form_message(pop_x, pop_y, pop_w, pop_h, "Berhasil menambah akun. Tekan tombol apa saja...");
+    } else {
+        /* Seharusnya jarang terjadi karena duplikat + domain sudah dicek di awal */
+        ui_form_message(pop_x, pop_y, pop_w, pop_h,
+                        "[PERINGATAN] Gagal menambah akun (duplikat / input tidak valid). Tekan tombol apa saja...");
+    }
     _getch();
 }
 
@@ -2888,10 +2942,35 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     }
 
     /* INPUT */
+    ui_form_message_clear(pop_x, pop_y, pop_w, pop_h);
     if (!is_admin) {
-        gotoXY(x_email, y_email);
-        input_email_filtered(new_email, (int)sizeof(new_email), MAX_VIS);
-        if (new_email[0] == 27) return;
+        while (1) {
+            gotoXY(x_email, y_email);
+            input_email_filtered(new_email, (int)sizeof(new_email), MAX_VIS);
+            if (new_email[0] == 27) return;
+            if (is_blank(new_email)) break; /* boleh kosong = tidak diganti */
+
+            char norm[128];
+            if (!akun_normalize_login_email(new_email, norm, (int)sizeof(norm))) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Surel harus menggunakan domain @kai.id.");
+                continue;
+            }
+            if (!looks_like_email(norm)) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Format surel tidak valid (contoh: nama@kai.id).");
+                continue;
+            }
+            if (ui_akun_email_exists_norm_except(norm, idx)) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h,
+                                 "[PERINGATAN] Surel sudah terdaftar.");
+                continue;
+            }
+
+            snprintf(new_email, sizeof(new_email), "%s", norm);
+            ui_redraw_input_value(x_email, y_email, MAX_VIS, new_email);
+            break;
+        }
 
         gotoXY(x_nama, y_nama);
         input_person_name_filtered(new_nama, (int)sizeof(new_nama), MAX_VIS);
@@ -2907,9 +2986,17 @@ static void akun_popup_edit(int split_x, int content_w, int idx) {
     if (new_pass[0] == 27) return;
 
     if (!is_admin) {
-        gotoXY(x_role, y_role);
-        input_choice_digits_filtered(rolebuf, (int)sizeof(rolebuf), "123", 1);
-        if (rolebuf[0] == 27) return;
+        while (1) {
+            gotoXY(x_role, y_role);
+            input_choice_digits_filtered(rolebuf, (int)sizeof(rolebuf), "123", 1);
+            if (rolebuf[0] == 27) return;
+            if (is_blank(rolebuf)) break; /* kosong = tidak diganti */
+            if (!(strcmp(rolebuf, "1") == 0 || strcmp(rolebuf, "2") == 0 || strcmp(rolebuf, "3") == 0)) {
+                ui_require_valid(0, pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Peran harus 1-3.");
+                continue;
+            }
+            break;
+        }
     }
 
     int any_change = 0;
