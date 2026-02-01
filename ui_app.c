@@ -2233,6 +2233,48 @@ static void ui_redraw_base_simple(const char *base_title) {
     draw_layout_base(w, h, base_title);
 }
 
+/* ================== MODE REFERENSI (LOOKUP) DI TRANSAKSI ==================
+   Saat membuka tabel master lewat tombol F1/F2 dari modul Transaksi,
+   user dengan peran Karyawan Transaksi hanya boleh melihat (read-only).
+   Aksi Tambah/Edit/Hapus/Nonaktifkan akan menampilkan peringatan.
+*/
+static int g_ref_lookup_mode = 0;
+static int g_ref_lookup_readonly = 0;
+
+static void ui_ref_lookup_push(int readonly, int *prev_mode, int *prev_ro) {
+    if (prev_mode) *prev_mode = g_ref_lookup_mode;
+    if (prev_ro)   *prev_ro   = g_ref_lookup_readonly;
+    g_ref_lookup_mode = 1;
+    g_ref_lookup_readonly = readonly ? 1 : 0;
+}
+static void ui_ref_lookup_pop(int prev_mode, int prev_ro) {
+    g_ref_lookup_mode = prev_mode;
+    g_ref_lookup_readonly = prev_ro;
+}
+
+static int ui_ref_readonly_active(void) {
+    const Account *me = session_me();
+    /* Batasi hanya untuk peran Karyawan Transaksi saat mode lookup aktif */
+    return (g_ref_lookup_mode && g_ref_lookup_readonly && me && me->role == ROLE_TRANSAKSI);
+}
+
+static void ui_ref_warn_no_permission(const char *aksi) {
+    Beep(700, 80);
+    if (g_bottom_panel_x >= 0 && g_bottom_panel_w > 0) {
+        char line1[256];
+        snprintf(line1, sizeof(line1), "[PERINGATAN] Tidak diizinkan %s pada tampilan referensi.", (aksi ? aksi : "melakukan aksi"));
+        print_padded(g_bottom_panel_x, g_bottom_panel_y, g_bottom_panel_w, "%s", line1);
+        print_padded(g_bottom_panel_x, g_bottom_panel_y + 1, g_bottom_panel_w,
+                     "Hanya Karyawan Data yang boleh mengubah data. Tekan tombol apa saja...");
+        _getch();
+    } else {
+        /* fallback minimal */
+        printf("[PERINGATAN] Tidak diizinkan %s. Tekan tombol apa saja...", (aksi ? aksi : "melakukan aksi"));
+        _getch();
+    }
+}
+
+
 
 
 #if 0 /* Modul Karyawan dihapus dari build + tidak dipanggil dari UI */
@@ -3705,7 +3747,7 @@ static void view_penumpang() {
             if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
         }
 
-        if (ch == 'a' || ch == 'A') { penumpang_popup_add(split_x, content_w); continue; }
+        if (ch == 'a' || ch == 'A') { if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menambah"); continue; } penumpang_popup_add(split_x, content_w); continue; }
 
         if (ch == 13) {
             if (rows_on_page == 0) { Beep(800, 60); continue; }
@@ -3714,6 +3756,7 @@ static void view_penumpang() {
         }
 
         if (ch == 'e' || ch == 'E') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("mengubah"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_penumpang[idx].active) { Beep(800, 60); continue; }
@@ -3722,6 +3765,7 @@ static void view_penumpang() {
         }
 
         if (ch == 'x' || ch == 'X') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menonaktifkan"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_penumpang[idx].active) { Beep(800, 60); continue; }
@@ -4169,7 +4213,7 @@ static void view_stasiun() {
             if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
         }
 
-        if (ch == 'a' || ch == 'A') { stasiun_popup_add(split_x, content_w); continue; }
+        if (ch == 'a' || ch == 'A') { if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menambah"); continue; } stasiun_popup_add(split_x, content_w); continue; }
 
         if (ch == 13) {
             if (rows_on_page == 0) { Beep(800, 60); continue; }
@@ -4178,6 +4222,7 @@ static void view_stasiun() {
         }
 
         if (ch == 'e' || ch == 'E') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("mengubah"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_stasiun[idx].active) { Beep(800, 60); continue; }
@@ -4186,6 +4231,7 @@ static void view_stasiun() {
         }
 
         if (ch == 'x' || ch == 'X') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menonaktifkan"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_stasiun[idx].active) { Beep(800, 60); continue; }
@@ -4677,7 +4723,7 @@ static void view_kereta() {
             if (ext == 77) { if (page + 1 < total_pages) { page++; selected = 0; } else Beep(800, 60); continue; }
         }
 
-        if (ch == 'a' || ch == 'A') { kereta_popup_add(split_x, content_w); continue; }
+        if (ch == 'a' || ch == 'A') { if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menambah"); continue; } kereta_popup_add(split_x, content_w); continue; }
 
         if (ch == 13) {
             if (rows_on_page == 0) { Beep(800, 60); continue; }
@@ -4686,6 +4732,7 @@ static void view_kereta() {
         }
 
         if (ch == 'e' || ch == 'E') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("mengubah"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_kereta[idx].active) { Beep(800, 60); continue; }
@@ -4694,6 +4741,7 @@ static void view_kereta() {
         }
 
         if (ch == 'x' || ch == 'X') {
+            if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menonaktifkan"); continue; }
             if (rows_on_page == 0) { Beep(800, 60); continue; }
             int idx = idxs[start + selected];
             if (!g_kereta[idx].active) { Beep(800, 60); continue; }
@@ -5195,7 +5243,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         if (r == 1) { /* F1 */
             /* simpan panel bawah agar posisi popup tetap konsisten */
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_kereta();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
 
             /* redraw base untuk hilangkan artefak setelah ESC dari lookup */
@@ -5206,7 +5256,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         }
         if (r == 2) { /* F2 */
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_stasiun();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
 
             ui_redraw_base_simple("Kelola Jadwal Tiket");
@@ -5227,7 +5279,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         if (r == -1 || asal[0] == 27) return;
         if (r == 1) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_kereta();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Kelola Jadwal Tiket");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -5236,7 +5290,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         }
         if (r == 2) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_stasiun();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Kelola Jadwal Tiket");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -5256,7 +5312,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         if (r == -1 || tujuan[0] == 27) return;
         if (r == 1) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_kereta();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Kelola Jadwal Tiket");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -5265,7 +5323,9 @@ static void jadwal_popup_add(int account_index, int split_x, int content_w) {
         }
         if (r == 2) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_stasiun();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Kelola Jadwal Tiket");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -5525,6 +5585,14 @@ static void jadwal_popup_edit(int split_x, int content_w, int idx) {
             ui_form_message(pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Format Waktu Tiba tidak valid.");
             continue;
         }
+        
+        long long k_brg = datetime_ddmmyyyy_hhmm_to_key(brg);
+        long long k_tiba = datetime_ddmmyyyy_hhmm_to_key(tiba);
+        if (k_brg < 0 || k_tiba < 0 || k_tiba <= k_brg) {
+            Beep(700, 80);
+            ui_form_message(pop_x, pop_y, pop_w, pop_h, "[PERINGATAN] Waktu Tiba harus setelah Waktu Berangkat.");
+            continue;
+        }
         break;
     }
     while (1) {
@@ -5683,7 +5751,9 @@ reinput_penumpang:
         if (r == -1 || id_penumpang[0] == 27) return;
         if (r == 1) { /* F1 */
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_penumpang();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
 
             ui_redraw_base_simple("Transaksi Pembayaran Tiket (CRD)");
@@ -5693,7 +5763,9 @@ reinput_penumpang:
         }
         if (r == 2) { /* F2 */
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_jadwal_tiket(account_index);
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
 
             ui_redraw_base_simple("Transaksi Pembayaran Tiket (CRD)");
@@ -5715,7 +5787,9 @@ reinput_jadwal:
         if (r == -1 || id_jadwal[0] == 27) return;
         if (r == 1) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_penumpang();
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Transaksi Pembayaran Tiket (CRD)");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -5724,7 +5798,9 @@ reinput_jadwal:
         }
         if (r == 2) {
             int bx=g_bottom_panel_x, by=g_bottom_panel_y, bw=g_bottom_panel_w, bh=g_bottom_panel_h;
+            int pm, pr; ui_ref_lookup_push((session_me() && session_me()->role == ROLE_TRANSAKSI), &pm, &pr);
             view_jadwal_tiket(account_index);
+            ui_ref_lookup_pop(pm, pr);
             g_bottom_panel_x=bx; g_bottom_panel_y=by; g_bottom_panel_w=bw; g_bottom_panel_h=bh;
             ui_redraw_base_simple("Transaksi Pembayaran Tiket (CRD)");
             popup_content_clamped(split_x, pop_h, &pop_x, &pop_y, &pop_w, &pop_h);
@@ -6025,10 +6101,13 @@ static void view_jadwal_tiket(int account_index) {
             if (ch == 13) { /* Enter detail */
                 if (idx >= 0) jadwal_popup_detail(split_x, content_w, idx);
             } else if (c == 'a') {
+                if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menambah"); continue; }
                 jadwal_popup_add(account_index, split_x, content_w);
             } else if (c == 'e') {
+                if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("mengubah"); continue; }
                 if (idx >= 0) jadwal_popup_edit(split_x, content_w, idx);
             } else if (c == 'd') {
+                if (ui_ref_readonly_active()) { ui_ref_warn_no_permission("menghapus"); continue; }
                 if (idx >= 0) jadwal_popup_delete_soft(split_x, content_w, idx);
             }
         }
@@ -6763,6 +6842,299 @@ void login_screen() {
     }
 }
 
+
+/* ================= DUMMY DATA (KAI-like) =================
+   Dibuat hanya saat file data masih kosong:
+   - Master: 40 Kereta, 40 Stasiun, 40 Penumpang
+   - Transaksi: 30 Jadwal, 30 Pembayaran
+*/
+static const char* seed_get_id_karyawan_by_role(Role r, const char *fallback) {
+    for (int i = 0; i < g_accountCount; i++) {
+        if (g_accounts[i].active && g_accounts[i].role == r && g_accounts[i].id_karyawan[0] != '\0') {
+            return g_accounts[i].id_karyawan;
+        }
+    }
+    return fallback;
+}
+
+static void seed_dummy_master_if_empty(void) {
+    /* STASIUN */
+    if (g_stasiunCount == 0) {
+        typedef struct { const char* kode; const char* nama; int mdpl; const char* kota; const char* alamat; const char* status; } StsSeed;
+        static const StsSeed data[] = {
+        { "GMR", "Gambir", 16, "Jakarta", "Jl. Medan Merdeka Timur", "Aktif" },
+        { "PSE", "Pasar Senen", 5, "Jakarta", "Jl. Stasiun Senen", "Aktif" },
+        { "JAKK", "Jakarta Kota", 3, "Jakarta", "Jl. Stasiun Kota", "Aktif" },
+        { "BD", "Bandung", 709, "Bandung", "Jl. Kebon Kawung", "Aktif" },
+        { "KAC", "Kiaracondong", 681, "Bandung", "Jl. Babakan Sari", "Aktif" },
+        { "YK", "Yogyakarta", 113, "Yogyakarta", "Jl. Margo Utomo", "Aktif" },
+        { "LPN", "Lempuyangan", 113, "Yogyakarta", "Jl. Lempuyangan", "Aktif" },
+        { "SGU", "Surabaya Gubeng", 5, "Surabaya", "Jl. Gubeng Masjid", "Aktif" },
+        { "SBI", "Surabaya Pasar Turi", 5, "Surabaya", "Jl. Semarang", "Aktif" },
+        { "ML", "Malang", 444, "Malang", "Jl. Trunojoyo", "Aktif" },
+        { "SMT", "Semarang Tawang", 4, "Semarang", "Jl. Tawang", "Aktif" },
+        { "SMC", "Semarang Poncol", 4, "Semarang", "Jl. Imam Bonjol", "Aktif" },
+        { "SLO", "Solo Balapan", 92, "Surakarta", "Jl. Wolter Monginsidi", "Aktif" },
+        { "PWT", "Purwokerto", 75, "Banyumas", "Jl. Stasiun Purwokerto", "Aktif" },
+        { "CBN", "Cirebon", 5, "Cirebon", "Jl. Siliwangi", "Aktif" },
+        { "TGL", "Tegal", 3, "Tegal", "Jl. Semeru", "Aktif" },
+        { "PKL", "Pekalongan", 6, "Pekalongan", "Jl. Gajah Mada", "Aktif" },
+        { "MN", "Madiun", 63, "Madiun", "Jl. Kompol Sunaryo", "Aktif" },
+        { "KDR", "Kediri", 72, "Kediri", "Jl. Stasiun Kediri", "Aktif" },
+        { "JMR", "Jember", 89, "Jember", "Jl. Bedadung", "Aktif" },
+        { "BWK", "Banyuwangi Ketapang", 10, "Banyuwangi", "Ketapang", "Aktif" },
+        { "KTA", "Kutoarjo", 24, "Purworejo", "Jl. Stasiun Kutoarjo", "Aktif" },
+        { "KYA", "Kroya", 24, "Cilacap", "Jl. Stasiun Kroya", "Aktif" },
+        { "TSM", "Tasikmalaya", 350, "Tasikmalaya", "Jl. Stasiun Tasikmalaya", "Aktif" },
+        { "GRT", "Garut", 717, "Garut", "Jl. Cimanuk", "Aktif" },
+        { "BGR", "Bogor", 246, "Bogor", "Jl. Nyi Raja Permas", "Aktif" },
+        { "DPK", "Depok", 85, "Depok", "Jl. Margonda", "Aktif" },
+        { "BKS", "Bekasi", 15, "Bekasi", "Jl. Ir. H. Juanda", "Aktif" },
+        { "CKP", "Cikampek", 20, "Karawang", "Jl. Stasiun Cikampek", "Aktif" },
+        { "CJR", "Cianjur", 435, "Cianjur", "Jl. Stasiun Cianjur", "Aktif" },
+        { "SKB", "Sukabumi", 584, "Sukabumi", "Jl. Stasiun Sukabumi", "Aktif" },
+        { "KPT", "Kertapati", 5, "Palembang", "Jl. Kertapati", "Aktif" },
+        { "LLG", "Lubuklinggau", 129, "Lubuklinggau", "Jl. Stasiun Lubuklinggau", "Aktif" },
+        { "PBM", "Prabumulih", 25, "Prabumulih", "Jl. Stasiun Prabumulih", "Aktif" },
+        { "TNK", "Tanjungkarang", 10, "Bandar Lampung", "Jl. Stasiun Tanjungkarang", "Aktif" },
+        { "KTB", "Kotabumi", 15, "Lampung Utara", "Jl. Stasiun Kotabumi", "Aktif" },
+        { "LHT", "Lahat", 100, "Lahat", "Jl. Stasiun Lahat", "Aktif" },
+        { "RK", "Rangkasbitung", 40, "Lebak", "Jl. Stasiun Rangkasbitung", "Aktif" },
+        { "SRG", "Serang", 10, "Serang", "Jl. Stasiun Serang", "Aktif" },
+        { "MJA", "Maja", 35, "Lebak", "Jl. Stasiun Maja", "Aktif" },
+        };
+        for (int i = 0; i < (int)(sizeof(data)/sizeof(data[0])); i++) {
+            stasiun_create_auto(NULL, 0,
+                               data[i].kode, data[i].nama,
+                               data[i].mdpl, data[i].kota, data[i].alamat, data[i].status);
+        }
+    }
+
+    /* KERETA */
+    if (g_keretaCount == 0) {
+        typedef struct { const char* nama; const char* kelas; int kapasitas; int gerbong; const char* status; } KrSeed;
+        static const KrSeed data[] = {
+        { "Argo Bromo Anggrek", "Eksekutif", 432, 6, "Aktif" },
+        { "Argo Lawu", "Eksekutif", 504, 7, "Aktif" },
+        { "Argo Dwipangga", "Eksekutif", 576, 8, "Aktif" },
+        { "Taksaka", "Eksekutif", 648, 9, "Aktif" },
+        { "Gajayana", "Eksekutif", 720, 10, "Aktif" },
+        { "Bima", "Eksekutif", 600, 8, "Aktif" },
+        { "Turangga", "Eksekutif", 600, 8, "Aktif" },
+        { "Mutiara Selatan", "Eksekutif", 640, 8, "Aktif" },
+        { "Malabar", "Eksekutif", 680, 9, "Aktif" },
+        { "Lodaya", "Bisnis", 700, 10, "Aktif" },
+        { "Ciremai", "Ekonomi", 820, 12, "Aktif" },
+        { "Jayabaya", "Ekonomi", 900, 12, "Aktif" },
+        { "Majapahit", "Ekonomi", 900, 12, "Aktif" },
+        { "Bengawan", "Ekonomi", 860, 12, "Aktif" },
+        { "Brantas", "Ekonomi", 820, 12, "Aktif" },
+        { "Kertajaya", "Ekonomi", 860, 12, "Aktif" },
+        { "Matarmaja", "Ekonomi", 860, 12, "Aktif" },
+        { "Progo", "Ekonomi", 780, 11, "Aktif" },
+        { "Bogowonto", "Ekonomi", 780, 11, "Aktif" },
+        { "Senja Utama Solo", "Bisnis", 650, 9, "Aktif" },
+        { "Senja Utama Yogya", "Bisnis", 650, 9, "Aktif" },
+        { "Sancaka", "Eksekutif", 520, 7, "Aktif" },
+        { "Fajar Utama Yogya", "Bisnis", 650, 9, "Aktif" },
+        { "Fajar Utama Solo", "Bisnis", 650, 9, "Aktif" },
+        { "Logawa", "Ekonomi", 780, 11, "Aktif" },
+        { "Sri Tanjung", "Ekonomi", 820, 12, "Aktif" },
+        { "Wijayakusuma", "Ekonomi", 780, 11, "Aktif" },
+        { "Kahuripan", "Ekonomi", 860, 12, "Aktif" },
+        { "Kutojaya Utara", "Ekonomi", 860, 12, "Aktif" },
+        { "Kutojaya Selatan", "Ekonomi", 820, 12, "Aktif" },
+        { "Serayu", "Ekonomi", 780, 11, "Aktif" },
+        { "Cikuray", "Ekonomi", 720, 10, "Aktif" },
+        { "Pangandaran", "Eksekutif", 520, 7, "Aktif" },
+        { "Parahyangan", "Eksekutif", 520, 7, "Aktif" },
+        { "Argo Parahyangan", "Eksekutif", 560, 8, "Aktif" },
+        { "Harina", "Bisnis", 700, 10, "Aktif" },
+        { "Sritanjung Premium", "Bisnis", 700, 10, "Aktif" },
+        { "Jaka Tingkir", "Ekonomi", 820, 12, "Aktif" },
+        { "Malioboro Ekspres", "Eksekutif", 560, 8, "Aktif" },
+        { "Manahan", "Eksekutif", 520, 7, "Aktif" },
+        };
+        for (int i = 0; i < (int)(sizeof(data)/sizeof(data[0])); i++) {
+            kereta_create_auto(NULL, 0,
+                              data[i].nama, data[i].kelas,
+                              data[i].kapasitas, data[i].gerbong, data[i].status);
+        }
+    }
+
+    /* PENUMPANG */
+    if (g_penumpangCount == 0) {
+        typedef struct { const char* nama; const char* email; const char* telp; const char* lahir; const char* jk; } PnpSeed;
+        static const PnpSeed data[] = {
+        { "Andi Pratama", "andi.pratama@gmail.com", "088000000000", "01-01-1985", "Laki laki" },
+        { "Siti Rahmawati", "siti.rahmawati@gmail.com", "088000001379", "12-08-1988", "Perempuan" },
+        { "Budi Santoso", "budi.santoso@gmail.com", "088000002758", "23-03-1991", "Laki laki" },
+        { "Dewi Lestari", "dewi.lestari@gmail.com", "088000004137", "06-10-1994", "Perempuan" },
+        { "Rizky Maulana", "rizky.maulana@gmail.com", "088000005516", "17-05-1997", "Laki laki" },
+        { "Putri Ayu", "putri.ayu@gmail.com", "088000006895", "28-12-2000", "Perempuan" },
+        { "Fajar Nugroho", "fajar.nugroho@gmail.com", "088000008274", "11-07-2003", "Laki laki" },
+        { "Nadia Zahra", "nadia.zahra@gmail.com", "088000009653", "22-02-1985", "Perempuan" },
+        { "Agus Setiawan", "agus.setiawan@gmail.com", "088000011032", "05-09-1988", "Laki laki" },
+        { "Rina Laksmi", "rina.laksmi@gmail.com", "088000012411", "16-04-1991", "Perempuan" },
+        { "Ahmad Fauzi", "ahmad.fauzi@gmail.com", "088000013790", "27-11-1994", "Laki laki" },
+        { "Intan Permata", "intan.permata@gmail.com", "088000015169", "10-06-1997", "Perempuan" },
+        { "Yoga Prakoso", "yoga.prakoso@gmail.com", "088000016548", "21-01-2000", "Laki laki" },
+        { "Maya Sari", "maya.sari@gmail.com", "088000017927", "04-08-2003", "Perempuan" },
+        { "Dian Kusuma", "dian.kusuma@gmail.com", "088000019306", "15-03-1985", "Laki laki" },
+        { "Hendra Wijaya", "hendra.wijaya@gmail.com", "088000020685", "26-10-1988", "Perempuan" },
+        { "Sri Handayani", "sri.handayani@gmail.com", "088000022064", "09-05-1991", "Laki laki" },
+        { "Eko Saputra", "eko.saputra@gmail.com", "088000023443", "20-12-1994", "Perempuan" },
+        { "Lina Marlina", "lina.marlina@gmail.com", "088000024822", "03-07-1997", "Laki laki" },
+        { "Taufik Hidayat", "taufik.hidayat@gmail.com", "088000026201", "14-02-2000", "Perempuan" },
+        { "Rafi Ahmad", "rafi.ahmad@gmail.com", "088000027580", "25-09-2003", "Laki laki" },
+        { "Nisa Aulia", "nisa.aulia@gmail.com", "088000028959", "08-04-1985", "Perempuan" },
+        { "Bagas Pratomo", "bagas.pratomo@gmail.com", "088000030338", "19-11-1988", "Laki laki" },
+        { "Vina Melati", "vina.melati@gmail.com", "088000031717", "02-06-1991", "Perempuan" },
+        { "Rudi Hartono", "rudi.hartono@gmail.com", "088000033096", "13-01-1994", "Laki laki" },
+        { "Salma Nabila", "salma.nabila@gmail.com", "088000034475", "24-08-1997", "Perempuan" },
+        { "Iqbal Ramadhan", "iqbal.ramadhan@gmail.com", "088000035854", "07-03-2000", "Laki laki" },
+        { "Citra Kirana", "citra.kirana@gmail.com", "088000037233", "18-10-2003", "Perempuan" },
+        { "Farhan Akbar", "farhan.akbar@gmail.com", "088000038612", "01-05-1985", "Laki laki" },
+        { "Aisyah Putri", "aisyah.putri@gmail.com", "088000039991", "12-12-1988", "Perempuan" },
+        { "Arif Kurniawan", "arif.kurniawan@gmail.com", "088000041370", "23-07-1991", "Laki laki" },
+        { "Kartika Dewi", "kartika.dewi@gmail.com", "088000042749", "06-02-1994", "Perempuan" },
+        { "Ilham Prasetyo", "ilham.prasetyo@gmail.com", "088000044128", "17-09-1997", "Laki laki" },
+        { "Wulan Puspita", "wulan.puspita@gmail.com", "088000045507", "28-04-2000", "Perempuan" },
+        { "Kevin Jonathan", "kevin.jonathan@gmail.com", "088000046886", "11-11-2003", "Laki laki" },
+        { "Melisa Putri", "melisa.putri@gmail.com", "088000048265", "22-06-1985", "Perempuan" },
+        { "Dimas Anggara", "dimas.anggara@gmail.com", "088000049644", "05-01-1988", "Laki laki" },
+        { "Yuni Lestari", "yuni.lestari@gmail.com", "088000051023", "16-08-1991", "Perempuan" },
+        { "Bayu Pamungkas", "bayu.pamungkas@gmail.com", "088000052402", "27-03-1994", "Laki laki" },
+        { "Anisa Fitri", "anisa.fitri@gmail.com", "088000053781", "10-10-1997", "Perempuan" },
+        };
+        for (int i = 0; i < (int)(sizeof(data)/sizeof(data[0])); i++) {
+            penumpang_create_auto(NULL, 0,
+                                 data[i].nama, data[i].email,
+                                 data[i].telp, data[i].lahir, data[i].jk);
+        }
+    }
+}
+
+static void seed_dummy_transaksi_if_empty(void) {
+    const char *id_transaksi_staff = seed_get_id_karyawan_by_role(ROLE_TRANSAKSI, "PEG002");
+    /* JADWAL */
+    if (g_jadwalCount == 0) {
+        typedef struct { int kereta_no; int sts_asal_no; int sts_tujuan_no; const char* berangkat; const char* tiba; int harga; int kuota; } JdwSeed;
+        static const JdwSeed data[] = {
+        { 1, 1, 4, "10-01-2026 05:00", "10-01-2026 07:00", 150000, 432 },
+        { 4, 6, 11, "11-01-2026 07:30", "11-01-2026 12:30", 177000, 648 },
+        { 7, 11, 18, "12-01-2026 09:00", "12-01-2026 17:00", 204000, 600 },
+        { 10, 16, 25, "13-01-2026 11:30", "13-01-2026 22:30", 231000, 700 },
+        { 13, 21, 32, "14-01-2026 13:00", "14-01-2026 17:00", 258000, 900 },
+        { 16, 26, 39, "15-01-2026 15:30", "15-01-2026 22:30", 285000, 860 },
+        { 19, 31, 6, "16-01-2026 17:00", "17-01-2026 03:00", 312000, 780 },
+        { 22, 36, 13, "17-01-2026 05:30", "17-01-2026 08:30", 339000, 520 },
+        { 25, 1, 20, "18-01-2026 07:00", "18-01-2026 13:00", 366000, 780 },
+        { 28, 6, 27, "19-01-2026 09:30", "19-01-2026 18:30", 393000, 860 },
+        { 31, 11, 34, "20-01-2026 11:00", "20-01-2026 13:00", 420000, 780 },
+        { 34, 16, 1, "21-01-2026 13:30", "21-01-2026 18:30", 447000, 520 },
+        { 37, 21, 8, "22-01-2026 15:00", "22-01-2026 23:00", 474000, 700 },
+        { 40, 26, 15, "23-01-2026 17:30", "24-01-2026 04:30", 501000, 520 },
+        { 3, 31, 22, "24-01-2026 05:00", "24-01-2026 09:00", 528000, 576 },
+        { 6, 36, 29, "25-01-2026 07:30", "25-01-2026 14:30", 555000, 600 },
+        { 9, 1, 36, "26-01-2026 09:00", "26-01-2026 19:00", 582000, 680 },
+        { 12, 6, 3, "27-01-2026 11:30", "27-01-2026 14:30", 609000, 900 },
+        { 15, 11, 10, "28-01-2026 13:00", "28-01-2026 19:00", 636000, 820 },
+        { 18, 16, 17, "29-01-2026 15:30", "30-01-2026 00:30", 663000, 780 },
+        { 21, 21, 24, "30-01-2026 17:00", "30-01-2026 19:00", 690000, 650 },
+        { 24, 26, 31, "31-01-2026 05:30", "31-01-2026 10:30", 717000, 650 },
+        { 27, 31, 38, "01-02-2026 07:00", "01-02-2026 15:00", 744000, 780 },
+        { 30, 36, 5, "02-02-2026 09:30", "02-02-2026 20:30", 171000, 820 },
+        { 33, 1, 12, "03-02-2026 11:00", "03-02-2026 15:00", 198000, 520 },
+        { 36, 6, 19, "04-02-2026 13:30", "04-02-2026 20:30", 225000, 700 },
+        { 39, 11, 26, "05-02-2026 15:00", "06-02-2026 01:00", 252000, 560 },
+        { 2, 16, 33, "06-02-2026 17:30", "06-02-2026 20:30", 279000, 504 },
+        { 5, 21, 40, "07-02-2026 05:00", "07-02-2026 11:00", 306000, 720 },
+        { 8, 26, 7, "08-02-2026 07:30", "08-02-2026 16:30", 333000, 640 },
+        };
+        for (int i = 0; i < (int)(sizeof(data)/sizeof(data[0])); i++) {
+            char id_kereta[16], id_asal[16], id_tujuan[16];
+            snprintf(id_kereta, sizeof(id_kereta), "KA%03d", data[i].kereta_no);
+            snprintf(id_asal, sizeof(id_asal), "STS%03d", data[i].sts_asal_no);
+            snprintf(id_tujuan, sizeof(id_tujuan), "STS%03d", data[i].sts_tujuan_no);
+
+            /* tgl_dibuat = tanggal dari waktu berangkat (DD-MM-YYYY) */
+            char tgl_dibuat[16];
+            snprintf(tgl_dibuat, sizeof(tgl_dibuat), "%.10s", data[i].berangkat);
+
+            jadwal_create_auto(NULL, 0,
+                               tgl_dibuat,
+                               id_kereta,
+                               id_asal,
+                               id_tujuan,
+                               data[i].berangkat,
+                               data[i].tiba,
+                               data[i].harga,
+                               data[i].kuota,
+                               id_transaksi_staff);
+        }
+    }
+
+    /* PEMBAYARAN */
+    if (g_pembayaranCount == 0) {
+        typedef struct { int pnp_no; int jdw_no; int qty; const char* metode; const char* status; const char* tgl; } PaySeed;
+        static const PaySeed data[] = {
+        { 1, 1, 1, "TUNAI", "LUNAS", "10-01-2026" },
+        { 3, 2, 2, "DEBIT", "MENUNGGU", "11-01-2026" },
+        { 5, 3, 3, "QRIS", "LUNAS", "12-01-2026" },
+        { 7, 4, 1, "TUNAI", "MENUNGGU", "13-01-2026" },
+        { 9, 5, 2, "DEBIT", "LUNAS", "14-01-2026" },
+        { 11, 6, 3, "QRIS", "MENUNGGU", "15-01-2026" },
+        { 13, 7, 1, "TUNAI", "LUNAS", "16-01-2026" },
+        { 15, 8, 2, "DEBIT", "MENUNGGU", "17-01-2026" },
+        { 17, 9, 3, "QRIS", "LUNAS", "18-01-2026" },
+        { 19, 10, 1, "TUNAI", "MENUNGGU", "19-01-2026" },
+        { 21, 11, 2, "DEBIT", "LUNAS", "20-01-2026" },
+        { 23, 12, 3, "QRIS", "MENUNGGU", "21-01-2026" },
+        { 25, 13, 1, "TUNAI", "LUNAS", "22-01-2026" },
+        { 27, 14, 2, "DEBIT", "MENUNGGU", "23-01-2026" },
+        { 29, 15, 3, "QRIS", "LUNAS", "24-01-2026" },
+        { 31, 16, 1, "TUNAI", "MENUNGGU", "25-01-2026" },
+        { 33, 17, 2, "DEBIT", "LUNAS", "26-01-2026" },
+        { 35, 18, 3, "QRIS", "MENUNGGU", "27-01-2026" },
+        { 37, 19, 1, "TUNAI", "LUNAS", "28-01-2026" },
+        { 39, 20, 2, "DEBIT", "MENUNGGU", "29-01-2026" },
+        { 1, 21, 3, "QRIS", "LUNAS", "30-01-2026" },
+        { 3, 22, 1, "TUNAI", "MENUNGGU", "31-01-2026" },
+        { 5, 23, 2, "DEBIT", "LUNAS", "01-02-2026" },
+        { 7, 24, 3, "QRIS", "MENUNGGU", "02-02-2026" },
+        { 9, 25, 1, "TUNAI", "LUNAS", "03-02-2026" },
+        { 11, 26, 2, "DEBIT", "MENUNGGU", "04-02-2026" },
+        { 13, 27, 3, "QRIS", "LUNAS", "05-02-2026" },
+        { 15, 28, 1, "TUNAI", "MENUNGGU", "06-02-2026" },
+        { 17, 29, 2, "DEBIT", "LUNAS", "07-02-2026" },
+        { 19, 30, 3, "QRIS", "MENUNGGU", "08-02-2026" },
+        };
+        for (int i = 0; i < (int)(sizeof(data)/sizeof(data[0])); i++) {
+            char id_pnp[16], id_jdw[20];
+            snprintf(id_pnp, sizeof(id_pnp), "PNP%03d", data[i].pnp_no);
+            snprintf(id_jdw, sizeof(id_jdw), "JDW%03d", data[i].jdw_no);
+
+            char err[128];
+            pembayaran_create_auto(NULL, 0,
+                                   data[i].tgl,
+                                   id_pnp,
+                                   id_jdw,
+                                   data[i].qty,
+                                   data[i].metode,
+                                   data[i].status,
+                                   id_transaksi_staff,
+                                   err, sizeof(err));
+            /* jika gagal (harusnya tidak), abaikan agar proses seed tetap lanjut */
+        }
+    }
+}
+
+static void seed_dummy_data_if_empty(void) {
+    seed_dummy_master_if_empty();
+    seed_dummy_transaksi_if_empty();
+}
+
 void ui_init(void) {
     akun_init();
     penumpang_init();
@@ -6770,7 +7142,11 @@ void ui_init(void) {
     kereta_init();
     jadwal_init();
     pembayaran_init();
+
+    /* Auto-generate dummy data jika file masih kosong */
+    seed_dummy_data_if_empty();
 }
+
 
 void ui_run() {
     login_screen();

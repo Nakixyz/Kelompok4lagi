@@ -29,13 +29,13 @@ static void now_date_ddmmyyyy(char *out, size_t out_sz) {
 
 /* Generate ID transaksi pembayaran: TRX### (auto increment). */
 static int trx_parse_num(const char *id) {
-    if (!id) return 0;
-    if (strncmp(id, "TRX", 3) != 0) return 0;
+    if (!id) return -1;
+    if (strncmp(id, "TRX", 3) != 0) return -1;
     const char *p = id + 3;
-    if (!*p) return 0;
+    if (!*p) return -1;
     int n = 0;
     while (*p) {
-        if (*p < '0' || *p > '9') return 0;
+        if (*p < '0' || *p > '9') return -1;
         n = n * 10 + (*p - '0');
         p++;
     }
@@ -44,12 +44,21 @@ static int trx_parse_num(const char *id) {
 
 static void pembayaran_next_id(char *out, size_t out_sz) {
     if (!out || out_sz == 0) return;
-    int maxn = 0;
-    for (int i = 0; i < g_pembayaranCount; i++) {
-        int n = trx_parse_num(g_pembayaran[i].id_pembayaran);
-        if (n > maxn) maxn = n;
+
+    /* Cari nomor terkecil yang belum dipakai, mulai dari 1 (TRX001). */
+    for (int cand = 1; cand <= 999; cand++) {
+        int used = 0;
+        for (int i = 0; i < g_pembayaranCount; i++) {
+            int n = trx_parse_num(g_pembayaran[i].id_pembayaran);
+            if (n == cand) { used = 1; break; }
+        }
+        if (!used) {
+            snprintf(out, out_sz, "TRX%03d", cand);
+            return;
+        }
     }
-    snprintf(out, out_sz, "TRX%03d", maxn + 1);
+    /* Fallback */
+    snprintf(out, out_sz, "TRX%03d", g_pembayaranCount + 1);
 }
 
 int pembayaran_create_auto(char *out_id, size_t out_sz,
@@ -101,6 +110,7 @@ int pembayaran_create_auto(char *out_id, size_t out_sz,
     int guard = 0;
     while (pembayaran_find_index_by_id(idtrx) >= 0 && guard < 1000) {
         int n = trx_parse_num(idtrx);
+        if (n < 0) n = 0;
         snprintf(idtrx, sizeof(idtrx), "TRX%03d", n + 1);
         guard++;
     }
